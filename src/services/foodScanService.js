@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp AI Food Scan]";
 
@@ -46,18 +47,13 @@ export async function analyzeFoodImage({ image, foodName }) {
 }
 
 function getAnalyzeFoodApiUrl() {
-  const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-  if (configuredBaseUrl) return `${configuredBaseUrl}/api/analyze-food`;
-
-  if (Capacitor.isNativePlatform()) {
-    const message =
-      "Android app не має доступу до локального /api/analyze-food у packaged build. " +
-      "Запусти backend у мережі й задай VITE_API_BASE_URL, наприклад http://192.168.1.20:5200.";
+  try {
+    return getApiUrl("/api/analyze-food");
+  } catch (error) {
+    const message = error.message;
     console.error(`${DEBUG_PREFIX} API endpoint unavailable`, { reason: message });
     throw new Error(message);
   }
-
-  return "/api/analyze-food";
 }
 
 async function normalizeImageToFile(image) {
@@ -171,9 +167,4 @@ function parseJsonResponse(text) {
   } catch {
     return { error: text || "API returned an empty response." };
   }
-}
-
-function getAndroidApiHint() {
-  if (!Capacitor.isNativePlatform()) return "";
-  return "У Capacitor Android відносний /api не вказує на Vite server. Потрібен VITE_API_BASE_URL з IP backend-сервера.";
 }

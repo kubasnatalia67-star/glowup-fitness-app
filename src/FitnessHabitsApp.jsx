@@ -79,6 +79,11 @@ import {
   stripLargePhotosFromDiary,
 } from "./utils/imageUtils.js";
 import { askCharlie } from "./services/charlieService.js";
+import {
+  API_BASE_URL_STORAGE_KEY,
+  getConfiguredApiBaseUrl,
+  normalizeApiBaseUrl,
+} from "./services/apiConfigService.js";
 import { getAndroidTodaySteps, hasNativeStepCounter } from "./services/stepsService.js";
 import { getGlowUpWidgetStats, hasNativeWidget, updateGlowUpWidget } from "./services/widgetService.js";
 
@@ -275,6 +280,8 @@ export default function FitnessHabitsApp() {
   const [appLanguage, setAppLanguage] = useState(
     () => localStorage.getItem("appLanguage") || "uk"
   );
+  const [apiBaseUrl, setApiBaseUrl] = useState(() => getConfiguredApiBaseUrl());
+  const [apiBaseUrlMessage, setApiBaseUrlMessage] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(
     () => localStorage.getItem("voiceEnabled") !== "false"
   );
@@ -2326,6 +2333,18 @@ export default function FitnessHabitsApp() {
     }));
   };
 
+  const saveApiBaseUrl = () => {
+    const normalized = normalizeApiBaseUrl(apiBaseUrl);
+    setApiBaseUrl(normalized);
+    if (normalized) {
+      localStorage.setItem(API_BASE_URL_STORAGE_KEY, normalized);
+      setApiBaseUrlMessage(`API Base URL збережено: ${normalized}`);
+    } else {
+      localStorage.removeItem(API_BASE_URL_STORAGE_KEY);
+      setApiBaseUrlMessage("API Base URL очищено. Web/PWA знову використовує /api.");
+    }
+  };
+
   const setVoiceEnabledChoice = (enabled) => {
     setVoiceEnabled(enabled);
     localStorage.setItem("voiceEnabled", String(enabled));
@@ -3341,6 +3360,46 @@ export default function FitnessHabitsApp() {
                       </option>
                     ))}
                   </select>
+                </section>
+
+                <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-cyan-950/20">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 text-xl shadow-lg shadow-cyan-500/20">
+                      API
+                    </span>
+                    <div>
+                      <h3 className="font-bold">AI API для Android</h3>
+                      <p className="text-xs text-white/45">
+                        Для packaged Android введи адресу backend у Wi-Fi мережі.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={apiBaseUrl}
+                    onChange={(event) => {
+                      setApiBaseUrl(event.target.value);
+                      setApiBaseUrlMessage("");
+                    }}
+                    placeholder="http://192.168.1.20:5200"
+                    className="w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveApiBaseUrl}
+                    className="mt-3 w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 p-3 font-bold text-white shadow-lg shadow-cyan-500/20"
+                  >
+                    Зберегти API Base URL
+                  </button>
+                  <p className="mt-3 text-xs leading-relaxed text-white/45">
+                    Приклад: запусти `npm run dev:phone` на комп'ютері, а тут вкажи IP комп'ютера з портом 5200.
+                  </p>
+                  {apiBaseUrlMessage && (
+                    <p className="mt-3 rounded-2xl bg-cyan-400/10 p-3 text-sm text-cyan-100">
+                      {apiBaseUrlMessage}
+                    </p>
+                  )}
                 </section>
 
                 <section className="rounded-[28px] border border-white/10 bg-[#0b1022]/80 p-3 shadow-xl shadow-pink-950/20">
