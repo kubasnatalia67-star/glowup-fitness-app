@@ -89,7 +89,11 @@ import {
   getConfiguredApiBaseUrl,
   normalizeApiBaseUrl,
 } from "./services/apiConfigService.js";
-import { getAndroidTodaySteps, hasNativeStepCounter } from "./services/stepsService.js";
+import {
+  getAndroidStepsStatus,
+  getAndroidTodaySteps,
+  hasNativeStepCounter,
+} from "./services/stepsService.js";
 import { getGlowUpWidgetStats, hasNativeWidget, updateGlowUpWidget } from "./services/widgetService.js";
 
 const FOOD_BARCODE_FORMATS = [
@@ -516,6 +520,7 @@ export default function FitnessHabitsApp() {
     readJson("stepsDailyLog", {})
   );
   const [stepsSourceMessage, setStepsSourceMessage] = useState("");
+  const [stepsSensorStatus, setStepsSensorStatus] = useState(null);
   const [calories, setCalories] = useState(1450);
 
   const [aiQuestion, setAiQuestion] = useState("");
@@ -1317,6 +1322,10 @@ export default function FitnessHabitsApp() {
     }, 5 * 60 * 1000);
 
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    refreshAndroidStepsStatus();
   }, []);
 
   useEffect(() => {
@@ -2790,8 +2799,44 @@ export default function FitnessHabitsApp() {
     setIsTimerRunning(false);
   };
 
+  const getStepsStatusMessage = (status) => {
+    if (!status?.native) {
+      return "Web/PWA режим: кроки можна вводити вручну.";
+    }
+    if (!status.permissionGranted) {
+      return "Дозволь Physical activity / Activity recognition у налаштуваннях Android.";
+    }
+    if (!status.hasSensor) {
+      return "На цьому телефоні немає системного step counter сенсора. Ручне введення доступне.";
+    }
+    return `Android step counter доступний${status.sensorName ? `: ${status.sensorName}` : ""}.`;
+  };
+
+  const refreshAndroidStepsStatus = async () => {
+    try {
+      const status = await getAndroidStepsStatus();
+      setStepsSensorStatus(status);
+      if (!stepsSourceMessage) {
+        setStepsSourceMessage(getStepsStatusMessage(status));
+      }
+      return status;
+    } catch (error) {
+      console.warn("[GlowUp Steps] status check failed", error);
+      const message = error.message || "Не вдалося перевірити Android step counter.";
+      setStepsSourceMessage(message);
+      return null;
+    }
+  };
+
   const syncAndroidSteps = async () => {
     if (!hasNativeStepCounter()) {
+      setStepsSensorStatus({
+        native: false,
+        available: false,
+        permissionGranted: false,
+        hasSensor: false,
+        source: "manual",
+      });
       setStepsSourceMessage("Кроки можна вводити вручну у web/PWA режимі.");
       return;
     }
@@ -2800,15 +2845,17 @@ export default function FitnessHabitsApp() {
       const result = await getAndroidTodaySteps();
       if (!result) return;
 
+      const status = await refreshAndroidStepsStatus();
       const nextSteps = Number(result.steps) || 0;
       setSteps(nextSteps);
       setStepsSourceMessage(
         result.initialized && nextSteps === 0
           ? "Крокомір Android підключено. Підрахунок за сьогодні почнеться з цього запуску."
-          : "Кроки оновлено з Android step counter."
+          : `Кроки оновлено з Android step counter${status?.sensorName ? ` (${status.sensorName})` : ""}.`
       );
     } catch (error) {
       console.warn("[GlowUp Steps] native sync failed", error);
+      await refreshAndroidStepsStatus();
       setStepsSourceMessage(error.message || "Крокомір Android недоступний. Ручне введення залишається.");
     }
   };
@@ -4432,7 +4479,19 @@ export default function FitnessHabitsApp() {
                 </div>
 
                 <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-sm text-white/70 sm:flex-row sm:items-center sm:justify-between">
-                  <span>{stepsSourceMessage || "Кроки можна оновити з Android або ввести вручну."}</span>
+                  <div className="min-w-0">
+                    <span>{stepsSourceMessage || "Кроки можна оновити з Android або ввести вручну."}</span>
+                    {stepsSensorStatus?.native && (
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+                        <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.permissionGranted ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"}`}>
+                          Permission: {stepsSensorStatus.permissionState || "unknown"}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.hasSensor ? "bg-cyan-400/15 text-cyan-100" : "bg-yellow-400/15 text-yellow-100"}`}>
+                          Sensor: {stepsSensorStatus.hasSensor ? "available" : "missing"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={syncAndroidSteps}
@@ -6851,7 +6910,10 @@ export default function FitnessHabitsApp() {
             type="number"
             min="0"
             value={steps}
-            onChange={(event) => setSteps(Number(event.target.value))}
+            onChange={(event) => {
+              setSteps(Number(event.target.value));
+              setStepsSourceMessage("Кроки оновлено вручну.");
+            }}
             className="w-full border rounded-xl p-3 mb-3"
           />
 

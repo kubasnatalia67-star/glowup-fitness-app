@@ -46,6 +46,24 @@ public class GlowUpStepsPlugin extends Plugin {
         readStepCounter(call);
     }
 
+    @PluginMethod
+    public void getStatus(PluginCall call) {
+        SensorManager sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+        Sensor stepCounter = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        boolean permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            getPermissionState("activity") == PermissionState.GRANTED;
+
+        JSObject response = new JSObject();
+        response.put("native", true);
+        response.put("permissionGranted", permissionGranted);
+        response.put("permissionState", Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ? "granted" : getPermissionState("activity").toString());
+        response.put("hasSensor", stepCounter != null);
+        response.put("available", permissionGranted && stepCounter != null);
+        response.put("sensorName", stepCounter == null ? "" : stepCounter.getName());
+        response.put("source", "android-step-counter");
+        call.resolve(response);
+    }
+
     @PermissionCallback
     private void activityPermissionCallback(PluginCall call) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || getPermissionState("activity") == PermissionState.GRANTED) {

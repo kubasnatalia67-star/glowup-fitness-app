@@ -9,3 +9,17 @@ export async function getAndroidTodaySteps() {
   if (!hasNativeStepCounter()) return null;
   return GlowUpSteps.getTodaySteps();
 }
+
+export async function getAndroidStepsStatus() {
+  if (!hasNativeStepCounter()) {
+    return {
+      native: false,
+      available: false,
+      permissionGranted: false,
+      hasSensor: false,
+      source: "manual",
+    };
+  }
+
+  return GlowUpSteps.getStatus();
+}
