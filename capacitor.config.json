@@ -1,0 +1,8 @@
+{
+  "appId": "com.glowup.fitness",
+  "appName": "GlowUp",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

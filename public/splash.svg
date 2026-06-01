@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="GlowUp splash placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#08071a"/>
+      <stop offset=".55" stop-color="#180f35"/>
+      <stop offset="1" stop-color="#3b1035"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="280" x2="920" y1="150" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ec4899"/>
+      <stop offset=".55" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#fb923c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="900" cy="120" r="220" fill="#ec4899" opacity=".16"/>
+  <circle cx="280" cy="540" r="220" fill="#fb923c" opacity=".12"/>
+  <rect x="270" y="130" width="660" height="370" rx="44" fill="#ffffff" opacity=".06" stroke="#ffffff" stroke-opacity=".14"/>
+  <rect x="332" y="194" width="104" height="104" rx="28" fill="url(#accent)"/>
+  <text x="464" y="240" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="58" font-weight="800">GlowUp</text>
+  <text x="464" y="286" fill="#ffffff" fill-opacity=".68" font-family="Inter, Arial, sans-serif" font-size="24">Fitness • Nutrition • AI Coach</text>
+  <rect x="332" y="350" width="536" height="22" rx="11" fill="#fff" opacity=".14"/>
+  <rect x="332" y="392" width="420" height="22" rx="11" fill="#fff" opacity=".1"/>
+  <rect x="332" y="434" width="488" height="22" rx="11" fill="#fff" opacity=".08"/>
+</svg>

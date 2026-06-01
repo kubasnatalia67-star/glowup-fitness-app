@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="GlowUp icon">
+  <defs>
+    <linearGradient id="g" x1="18" x2="112" y1="18" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ec4899"/>
+      <stop offset=".52" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#fb923c"/>
+    </linearGradient>
+    <radialGradient id="r" cx="39" cy="31" r="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="#08071a"/>
+  <rect x="10" y="10" width="108" height="108" rx="25" fill="url(#g)" opacity=".95"/>
+  <rect x="10" y="10" width="108" height="108" rx="25" fill="url(#r)"/>
+  <path fill="#fff" fill-opacity=".93" d="M64 26c11 17 11 30 0 41-11-11-11-24 0-41Z"/>
+  <path fill="#fff" fill-opacity=".84" d="M34 45c19 2 31 10 35 25-15 3-27-5-35-25Z"/>
+  <path fill="#fff" fill-opacity=".84" d="M94 45c-19 2-31 10-35 25 15 3 27-5 35-25Z"/>
+  <path fill="#fff" fill-opacity=".95" d="M64 72c13 0 24 8 31 24H33c7-16 18-24 31-24Z"/>
+</svg>

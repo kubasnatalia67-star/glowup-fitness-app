@@ -1,0 +1,17 @@
+{
+  "name": "GlowUp Fitness App",
+  "short_name": "GlowUp",
+  "description": "Beta demo fitness dashboard with AI coach, nutrition, water, sleep and progress.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08071a",
+  "theme_color": "#120b2f",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
