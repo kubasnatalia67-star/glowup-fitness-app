@@ -71,7 +71,12 @@ import {
   scheduleNativeWaterReminders,
   showAppNotification,
 } from "./services/notificationService.js";
-import { hasNativeTts, speakNativeText, stopNativeSpeech } from "./services/ttsService.js";
+import {
+  getNativeTtsAvailability,
+  hasNativeTts,
+  speakNativeText,
+  stopNativeSpeech,
+} from "./services/ttsService.js";
 import {
   compressCanvasToDataUrl,
   compressImageFile,
@@ -2115,12 +2120,19 @@ export default function FitnessHabitsApp() {
 
     try {
       if (hasNativeTts()) {
-        await speakNativeText({
+        const availability = await getNativeTtsAvailability();
+        console.log("[GlowUp Charlie TTS] native availability", availability);
+        if (!availability.available) {
+          throw new Error("Увімкни синтез мовлення в налаштуваннях Android.");
+        }
+
+        const result = await speakNativeText({
           text,
           language: languageCode,
           rate: voiceRate,
           pitch: voicePitch,
         });
+        console.log("[GlowUp Charlie TTS] native speak result", result);
         setVoiceMessage("");
         return;
       }
@@ -2141,7 +2153,7 @@ export default function FitnessHabitsApp() {
       setVoiceMessage("");
     } catch (error) {
       console.error("Charlie TTS failed", error);
-      setVoiceMessage("Увімкни синтез мовлення в налаштуваннях Android.");
+      setVoiceMessage(error.message || "Увімкни синтез мовлення в налаштуваннях Android.");
     }
   };
 

@@ -8,6 +8,8 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @CapacitorPlugin(name = "GlowUpTts")
@@ -35,14 +37,13 @@ public class GlowUpTtsPlugin extends Plugin {
 
         Runnable speakNow = () -> {
             if (textToSpeech == null || initFailed) {
-                call.reject("Увімкни синтез мовлення в налаштуваннях Android.");
+                rejectMissingEngine(call);
                 return;
             }
 
-            Locale locale = Locale.forLanguageTag(language);
-            int languageStatus = textToSpeech.setLanguage(locale);
-            if (languageStatus == TextToSpeech.LANG_MISSING_DATA || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
-                call.reject("Увімкни синтез мовлення в налаштуваннях Android.");
+            Locale selectedLocale = findSupportedLocale(language);
+            if (selectedLocale == null) {
+                rejectMissingEngine(call);
                 return;
             }
 
@@ -57,12 +58,13 @@ public class GlowUpTtsPlugin extends Plugin {
             );
 
             if (result == TextToSpeech.ERROR) {
-                call.reject("Увімкни синтез мовлення в налаштуваннях Android.");
+                rejectMissingEngine(call);
                 return;
             }
 
             JSObject response = new JSObject();
             response.put("spoken", true);
+            response.put("language", selectedLocale.toLanguageTag());
             call.resolve(response);
         };
 
@@ -86,7 +88,34 @@ public class GlowUpTtsPlugin extends Plugin {
         JSObject response = new JSObject();
         response.put("available", textToSpeech != null && !initFailed);
         response.put("ready", isReady);
+        response.put("native", true);
         call.resolve(response);
+    }
+
+    private Locale findSupportedLocale(String language) {
+        for (Locale locale : getLocaleCandidates(language)) {
+            int languageStatus = textToSpeech.setLanguage(locale);
+            if (languageStatus != TextToSpeech.LANG_MISSING_DATA && languageStatus != TextToSpeech.LANG_NOT_SUPPORTED) {
+                return locale;
+            }
+        }
+
+        return null;
+    }
+
+    private List<Locale> getLocaleCandidates(String language) {
+        List<Locale> locales = new ArrayList<>();
+        Locale requested = Locale.forLanguageTag(language == null ? "uk-UA" : language);
+        locales.add(requested);
+        locales.add(Locale.forLanguageTag("uk-UA"));
+        locales.add(Locale.forLanguageTag("uk"));
+        locales.add(Locale.forLanguageTag("ru-UA"));
+        locales.add(Locale.forLanguageTag("en-US"));
+        return locales;
+    }
+
+    private void rejectMissingEngine(PluginCall call) {
+        call.reject("Увімкни синтез мовлення в налаштуваннях Android.");
     }
 
     private void initTextToSpeech(Runnable onReady) {

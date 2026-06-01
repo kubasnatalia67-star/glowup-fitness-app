@@ -14,6 +14,13 @@ export async function speakNativeText({ text, language = "uk-UA", rate = 1, pitc
   });
 }
 
+export async function getNativeTtsAvailability() {
+  if (!hasNativeTts()) {
+    return { available: false, ready: false, native: false };
+  }
+  return GlowUpTts.isAvailable();
+}
+
 export async function stopNativeSpeech() {
   if (!hasNativeTts()) return;
   await GlowUpTts.stop();
