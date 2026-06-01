@@ -66,6 +66,7 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
         int waterMl = prefs.getInt(WATER_KEY, 0);
         int waterGoalMl = Math.max(1, prefs.getInt(WATER_GOAL_KEY, 2000));
         String weight = prefs.getString(WEIGHT_KEY, "-");
+        String weightText = weight == null || weight.trim().isEmpty() ? "-" : weight.trim();
         int steps = prefs.getInt(STEPS_KEY, 0);
         int activeCalories = prefs.getInt(ACTIVE_CALORIES_KEY, Math.round(steps * 0.04f));
         int caloriesConsumed = prefs.getInt(CALORIES_CONSUMED_KEY, 0);
@@ -78,7 +79,7 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
 
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.glowup_widget);
         views.setTextViewText(R.id.widget_water, waterMl + " мл");
-        views.setTextViewText(R.id.widget_weight, weight + " кг");
+        views.setTextViewText(R.id.widget_weight, weightText + " кг");
         views.setTextViewText(R.id.widget_steps, String.valueOf(steps));
         views.setTextViewText(R.id.widget_active_calories, activeCalories + " ккал");
         views.setTextViewText(

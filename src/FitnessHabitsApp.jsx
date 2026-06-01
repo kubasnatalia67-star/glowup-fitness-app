@@ -1251,34 +1251,48 @@ export default function FitnessHabitsApp() {
 
   useEffect(() => {
     let isMounted = true;
-    getGlowUpWidgetStats()
-      .then((stats) => {
-        if (!isMounted || !stats) return;
 
-        const today = getLocalDateKey();
-        if (stats.waterDate === today) {
-          const nativeWaterMl = Number(stats.waterMl) || 0;
-          setWaterDailyLog((log) => ({
-            ...log,
-            [today]: Math.max(Number(log[today]) || 0, nativeWaterMl),
-          }));
-        }
+    const syncWidgetStats = () =>
+      getGlowUpWidgetStats()
+        .then((stats) => {
+          if (!isMounted || !stats) return;
 
-        if (Number(stats.steps) > 0) {
-          setSteps(Number(stats.steps));
-        }
-      })
-      .catch((error) => {
-        console.warn("[GlowUp Widget] read failed", error);
-      })
-      .finally(() => {
-        if (isMounted) {
-          setWidgetStatsReady(true);
-        }
-      });
+          const today = getLocalDateKey();
+          if (stats.waterDate === today) {
+            const nativeWaterMl = Number(stats.waterMl) || 0;
+            setWaterDailyLog((log) => ({
+              ...log,
+              [today]: Math.max(Number(log[today]) || 0, nativeWaterMl),
+            }));
+          }
+
+          if (Number(stats.steps) > 0) {
+            setSteps(Number(stats.steps));
+          }
+        })
+        .catch((error) => {
+          console.warn("[GlowUp Widget] read failed", error);
+        })
+        .finally(() => {
+          if (isMounted) {
+            setWidgetStatsReady(true);
+          }
+        });
+
+    const syncOnVisible = () => {
+      if (document.visibilityState === "visible") {
+        syncWidgetStats();
+      }
+    };
+
+    syncWidgetStats();
+    window.addEventListener("focus", syncWidgetStats);
+    document.addEventListener("visibilitychange", syncOnVisible);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("focus", syncWidgetStats);
+      document.removeEventListener("visibilitychange", syncOnVisible);
     };
   }, []);
 
