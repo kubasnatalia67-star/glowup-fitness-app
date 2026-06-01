@@ -603,24 +603,54 @@ export default function FitnessHabitsApp() {
     carbs: Math.max(dailyNutritionGoals.carbs - todayDiaryCarbs, 0),
   };
   const latestMeasurement = measurements[0] || null;
-  const measurementChartPoints = useMemo(() => {
-    const values = [...measurements]
+  const measurementChartData = useMemo(() => {
+    const entries = [...measurements]
       .reverse()
       .slice(-8)
-      .map((entry) => Number(entry[measurementMetric]) || 0)
-      .filter((value) => value > 0);
-    if (values.length === 0) return "";
+      .map((entry) => ({
+        id: entry.id,
+        date: entry.date,
+        value: Number(entry[measurementMetric]) || 0,
+      }))
+      .filter((entry) => entry.value > 0);
+
+    if (entries.length === 0) {
+      return {
+        points: "",
+        entries: [],
+        first: 0,
+        latest: 0,
+        delta: 0,
+        min: 0,
+        max: 0,
+      };
+    }
+
+    const values = entries.map((entry) => entry.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = Math.max(1, max - min);
-    return values
-      .map((value, index) => {
-        const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
-        const y = 90 - ((value - min) / span) * 70;
+
+    const points = entries
+      .map((entry, index) => {
+        const x = entries.length === 1 ? 50 : (index / (entries.length - 1)) * 100;
+        const y = 88 - ((entry.value - min) / span) * 68;
         return `${x},${y}`;
       })
       .join(" ");
+
+    return {
+      points,
+      entries,
+      first: entries[0].value,
+      latest: entries[entries.length - 1].value,
+      delta: formatOneDecimal(entries[entries.length - 1].value - entries[0].value),
+      min,
+      max,
+    };
   }, [measurementMetric, measurements]);
+  const selectedMeasurementLabel =
+    MEASUREMENT_FIELDS.find(([key]) => key === measurementMetric)?.[1] || "Заміри";
   const latestAiFoodScan =
     foodDiary.find((item) => item.source === "openai") || null;
   const nutritionAiAdvice = useMemo(() => {
@@ -1984,6 +2014,10 @@ export default function FitnessHabitsApp() {
     if (!MEASUREMENT_FIELDS.some(([key]) => entry[key] > 0)) return;
     setMeasurements((items) => [entry, ...items].slice(0, 30));
     setMeasurementForm({ waist: "", hips: "", chest: "", arm: "", leg: "" });
+  };
+
+  const removeMeasurement = (id) => {
+    setMeasurements((items) => items.filter((item) => item.id !== id));
   };
 
   const handleBodyPhotoUpload = async (event) => {
@@ -4382,6 +4416,22 @@ export default function FitnessHabitsApp() {
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-4">
+                      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-white/45">Графік змін</p>
+                          <h4 className="text-xl font-black">{selectedMeasurementLabel}</h4>
+                        </div>
+                        {measurementChartData.entries.length > 0 && (
+                          <div className="rounded-2xl bg-white/10 px-3 py-2 text-right">
+                            <p className="text-xs text-white/45">Зміна</p>
+                            <p className={`text-lg font-black ${measurementChartData.delta <= 0 ? "text-emerald-200" : "text-pink-200"}`}>
+                              {measurementChartData.delta > 0 ? "+" : ""}
+                              {measurementChartData.delta} см
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       <div className="mb-4 flex flex-wrap gap-2">
                         {MEASUREMENT_FIELDS.map(([key, label]) => (
                           <button
@@ -4400,7 +4450,7 @@ export default function FitnessHabitsApp() {
                       </div>
 
                       <div className="h-48 overflow-hidden rounded-2xl bg-[#0b1022] p-3">
-                        {measurementChartPoints ? (
+                        {measurementChartData.points ? (
                           <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="none">
                             <defs>
                               <linearGradient id="measurementGradient" x1="0" x2="1" y1="0" y2="0">
@@ -4420,13 +4470,28 @@ export default function FitnessHabitsApp() {
                               />
                             ))}
                             <polyline
-                              points={measurementChartPoints}
+                              points={measurementChartData.points}
                               fill="none"
                               stroke="url(#measurementGradient)"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth="4"
                             />
+                            {measurementChartData.entries.map((entry, index) => {
+                              const point = measurementChartData.points.split(" ")[index];
+                              const [cx, cy] = point.split(",");
+                              return (
+                                <circle
+                                  key={entry.id}
+                                  cx={cx}
+                                  cy={cy}
+                                  r="2.8"
+                                  fill="#ffffff"
+                                  stroke="#ec4899"
+                                  strokeWidth="1.2"
+                                />
+                              );
+                            })}
                           </svg>
                         ) : (
                           <div className="grid h-full place-items-center text-center text-sm text-white/45">
@@ -4434,6 +4499,23 @@ export default function FitnessHabitsApp() {
                           </div>
                         )}
                       </div>
+
+                      {measurementChartData.entries.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                          <div className="rounded-2xl bg-white/5 p-3">
+                            <p className="text-xs text-white/45">Було</p>
+                            <p className="mt-1 font-black">{measurementChartData.first} см</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/5 p-3">
+                            <p className="text-xs text-white/45">Зараз</p>
+                            <p className="mt-1 font-black">{measurementChartData.latest} см</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/5 p-3">
+                            <p className="text-xs text-white/45">Діапазон</p>
+                            <p className="mt-1 font-black">{measurementChartData.min}-{measurementChartData.max}</p>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                         {MEASUREMENT_FIELDS.map(([key, label]) => (
@@ -4448,6 +4530,49 @@ export default function FitnessHabitsApp() {
                       </div>
                     </div>
                   </div>
+
+                  {measurements.length > 0 && (
+                    <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-black">Історія замірів</h4>
+                          <p className="text-xs text-white/45">Останні записи, найновіші зверху</p>
+                        </div>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/60">
+                          {measurements.length}/30
+                        </span>
+                      </div>
+
+                      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                        {measurements.map((entry) => (
+                          <div
+                            key={entry.id}
+                            className="grid gap-3 rounded-2xl bg-white/5 p-3 text-sm text-white/70 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+                          >
+                            <div className="font-bold text-white">{entry.date}</div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                              {MEASUREMENT_FIELDS.map(([key, label]) => (
+                                <div key={key}>
+                                  <span className="block text-[11px] text-white/35">{label}</span>
+                                  <span className="font-bold text-white">
+                                    {entry[key] || "-"}
+                                    {entry[key] ? " см" : ""}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeMeasurement(entry.id)}
+                              className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-500/25"
+                            >
+                              Видалити
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
