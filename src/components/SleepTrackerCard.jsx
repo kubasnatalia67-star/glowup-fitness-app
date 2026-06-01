@@ -79,7 +79,7 @@ export default function SleepTrackerCard({
 
       <div className="mt-4 rounded-2xl border border-indigo-300/15 bg-indigo-400/10 p-4">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-200">
-          AI порада по сну
+          Порада по сну
         </p>
         <p className={`mt-2 text-sm leading-relaxed ${sleepQuality.tone}`}>
           {sleepAdvice}
