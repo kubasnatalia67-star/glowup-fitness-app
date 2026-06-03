@@ -232,7 +232,7 @@ const EXERCISE_DEMO_VISUALS = {
   spark: { icon: "✨", label: "комбо", motion: "★" },
 };
 
-function ExerciseIllustration({ type, checked }) {
+function LegacyExerciseIllustration({ type, checked }) {
   const meta = getExerciseDemoMeta(type);
   const visual = EXERCISE_DEMO_VISUALS[type] || EXERCISE_DEMO_VISUALS.spark;
   const stroke = checked ? "#ffffff" : "#fde68a";
@@ -469,6 +469,143 @@ function ExerciseIllustration({ type, checked }) {
       </span>
       <span className="absolute bottom-1.5 left-2 right-2 truncate rounded-full bg-black/25 px-2 py-0.5 text-center text-[9px] font-bold text-white/80">
         {meta.motion}
+      </span>
+    </span>
+  );
+}
+
+const EXERCISE_SVG_DEMOS = {
+  squat: { label: "присідання", frames: ["stand", "squat", "stand"], arrow: "down" },
+  bridge: { label: "місток", frames: ["bridgeLow", "bridgeHigh", "bridgeLow"], arrow: "up" },
+  lunge: { label: "випади", frames: ["stand", "lunge", "stand"], arrow: "forward" },
+  hinge: { label: "тяга", frames: ["stand", "hinge", "stand"], arrow: "down" },
+  pushup: { label: "віджимання", frames: ["plank", "pushupLow", "plank"], arrow: "down" },
+  dip: { label: "трицепс", frames: ["dipHigh", "dipLow", "dipHigh"], arrow: "down" },
+  armRaise: { label: "руки", frames: ["armsLow", "armsHigh", "armsLow"], arrow: "up" },
+  plank: { label: "планка", frames: ["plank", "plank", "plank"], arrow: "hold" },
+  superman: { label: "superman", frames: ["supermanLow", "supermanHigh", "supermanLow"], arrow: "up" },
+  birdDog: { label: "bird dog", frames: ["birdDogLeft", "birdDogRight", "birdDogLeft"], arrow: "switch" },
+  row: { label: "тяга", frames: ["hingeReach", "rowPull", "hingeReach"], arrow: "pull" },
+  wallAngel: { label: "постава", frames: ["armsLow", "armsHigh", "armsLow"], arrow: "up" },
+  jumpingJack: { label: "кардіо", frames: ["stand", "jackOpen", "stand"], arrow: "open" },
+  mountainClimber: { label: "climber", frames: ["climberLeft", "climberRight", "climberLeft"], arrow: "switch" },
+  deadBug: { label: "кор", frames: ["deadBugLeft", "deadBugRight", "deadBugLeft"], arrow: "switch" },
+  sideLeg: { label: "нога", frames: ["sideLegLow", "sideLegHigh", "sideLegLow"], arrow: "up" },
+  calfRaise: { label: "ікри", frames: ["stand", "calfRaise", "stand"], arrow: "up" },
+  snowAngel: { label: "спина", frames: ["armsLow", "armsHigh", "armsLow"], arrow: "open" },
+  catCow: { label: "йога", frames: ["catPose", "cowPose", "catPose"], arrow: "wave" },
+  stretch: { label: "стретч", frames: ["stand", "stretchPose", "stand"], arrow: "forward" },
+  childPose: { label: "відпочинок", frames: ["childPose", "childPose", "childPose"], arrow: "hold" },
+  breath: { label: "дихання", frames: ["breathSmall", "breathBig", "breathSmall"], arrow: "breath" },
+  spark: { label: "комбо", frames: ["stand", "jackOpen", "squat"], arrow: "switch" },
+};
+
+const EXERCISE_POSES = {
+  stand: { head: [50, 19], torso: "M50 28 L50 52", arms: "M50 34 L38 45 M50 34 L62 45", legs: "M50 52 L40 78 M50 52 L60 78" },
+  squat: { head: [50, 25], torso: "M50 34 L45 54", arms: "M48 39 L30 46 M49 39 L67 45", legs: "M45 54 L31 66 L24 82 M45 54 L61 65 L70 82" },
+  lunge: { head: [48, 20], torso: "M48 29 L44 52", arms: "M46 36 L30 47 M47 36 L64 31", legs: "M44 52 L28 66 L21 82 M44 52 L67 55 L78 75" },
+  hinge: { head: [42, 21], torso: "M45 29 L65 47", arms: "M58 43 L77 56 M56 42 L74 51", legs: "M65 47 L54 79 M65 47 L78 78" },
+  bridgeLow: { head: [27, 62], torso: "M33 62 C44 52 58 52 70 62", arms: "M31 65 L20 77 M67 63 L78 77", legs: "M40 62 L29 78 M68 62 L78 78" },
+  bridgeHigh: { head: [26, 62], torso: "M32 62 C44 33 62 33 72 62", arms: "M31 65 L20 77 M70 63 L81 77", legs: "M40 61 L30 78 M69 62 L80 78" },
+  plank: { head: [25, 45], torso: "M31 47 L67 55", arms: "M38 49 L34 76 M62 54 L66 76", legs: "M67 55 L84 69 M67 55 L86 56" },
+  pushupLow: { head: [25, 54], torso: "M31 55 L67 62", arms: "M40 57 L37 78 M62 61 L64 79", legs: "M67 62 L85 73 M67 62 L86 63" },
+  dipHigh: { head: [50, 21], torso: "M50 30 L50 54", arms: "M46 38 L31 44 M54 38 L69 44", legs: "M50 54 L37 77 M50 54 L65 77" },
+  dipLow: { head: [50, 31], torso: "M50 40 L50 58", arms: "M45 47 L31 43 M55 47 L69 43", legs: "M50 58 L36 77 M50 58 L66 77" },
+  armsLow: { head: [50, 20], torso: "M50 29 L50 54", arms: "M49 36 L33 46 M51 36 L67 46", legs: "M50 54 L39 78 M50 54 L61 78" },
+  armsHigh: { head: [50, 20], torso: "M50 29 L50 54", arms: "M48 35 L30 18 M52 35 L70 18", legs: "M50 54 L39 78 M50 54 L61 78" },
+  jackOpen: { head: [50, 20], torso: "M50 29 L50 51", arms: "M48 34 L24 17 M52 34 L76 17", legs: "M50 51 L27 78 M50 51 L73 78" },
+  climberLeft: { head: [24, 43], torso: "M31 46 L67 51", arms: "M39 47 L33 76 M62 50 L67 76", legs: "M67 51 L81 75 M58 51 L45 73" },
+  climberRight: { head: [24, 43], torso: "M31 46 L67 51", arms: "M39 47 L33 76 M62 50 L67 76", legs: "M67 51 L52 73 M58 51 L83 75" },
+  deadBugLeft: { head: [50, 50], torso: "M50 56 L50 70", arms: "M49 58 L31 39 M52 58 L70 47", legs: "M48 69 L34 82 M52 69 L65 83" },
+  deadBugRight: { head: [50, 50], torso: "M50 56 L50 70", arms: "M49 58 L32 47 M52 58 L69 38", legs: "M48 69 L35 83 M52 69 L67 77" },
+  supermanLow: { head: [29, 54], torso: "M35 55 L61 56", arms: "M42 55 L23 63 M50 56 L72 64", legs: "M60 56 L81 63 M60 56 L80 52" },
+  supermanHigh: { head: [29, 49], torso: "M35 51 L61 51", arms: "M42 51 L20 35 M50 51 L76 38", legs: "M60 51 L83 38 M60 51 L82 65" },
+  birdDogLeft: { head: [33, 35], torso: "M39 39 L60 52", arms: "M44 42 L20 56 M58 51 L73 73", legs: "M60 52 L83 39 M60 52 L48 78" },
+  birdDogRight: { head: [33, 35], torso: "M39 39 L60 52", arms: "M44 42 L22 28 M58 51 L73 73", legs: "M60 52 L82 69 M60 52 L42 77" },
+  hingeReach: { head: [40, 23], torso: "M43 31 L64 47", arms: "M57 43 L80 50 M56 44 L78 58", legs: "M64 47 L54 79 M64 47 L78 78" },
+  rowPull: { head: [41, 23], torso: "M44 31 L64 47", arms: "M56 43 L75 36 M57 44 L78 44", legs: "M64 47 L54 79 M64 47 L78 78" },
+  sideLegLow: { head: [29, 61], torso: "M35 61 L65 62", arms: "M40 62 L26 78 M61 62 L72 78", legs: "M64 62 L82 73 M64 62 L82 61" },
+  sideLegHigh: { head: [29, 61], torso: "M35 61 L65 62", arms: "M40 62 L26 78 M61 62 L72 78", legs: "M64 62 L85 43 M64 62 L82 73" },
+  calfRaise: { head: [50, 18], torso: "M50 27 L50 51", arms: "M50 34 L36 43 M50 34 L64 43", legs: "M50 51 L40 76 M50 51 L62 76" },
+  catPose: { head: [24, 48], torso: "M31 50 C43 33 59 33 72 50", arms: "M38 50 L33 77 M66 50 L72 77", legs: "M44 50 L43 77 M61 50 L60 77" },
+  cowPose: { head: [24, 43], torso: "M31 46 C43 58 59 58 72 47", arms: "M38 48 L33 77 M66 49 L72 77", legs: "M44 50 L43 77 M61 50 L60 77" },
+  stretchPose: { head: [43, 22], torso: "M45 30 L41 54", arms: "M44 38 L72 33 M45 38 L68 43", legs: "M41 54 L25 78 M41 54 L71 73" },
+  childPose: { head: [31, 62], torso: "M36 63 C49 50 66 52 77 66", arms: "M39 65 L20 76 M64 61 L86 73", legs: "M61 62 L48 80 M71 66 L80 80" },
+  breathSmall: { head: [50, 32], torso: "M50 42 L50 68", arms: "M50 49 C39 45 38 58 49 60 M50 49 C61 45 62 58 51 60", legs: "M50 68 L39 82 M50 68 L61 82" },
+  breathBig: { head: [50, 31], torso: "M50 41 L50 68", arms: "M50 49 C30 35 23 58 46 62 M50 49 C70 35 77 58 54 62", legs: "M50 68 L39 82 M50 68 L61 82" },
+};
+
+function ExercisePose({ pose, begin = "0s" }) {
+  const body = EXERCISE_POSES[pose] || EXERCISE_POSES.stand;
+
+  return (
+    <g>
+      <animate attributeName="opacity" values="0.16;1;0.16" dur="2.4s" begin={begin} repeatCount="indefinite" />
+      <circle cx={body.head[0]} cy={body.head[1]} r="7" fill="#f6b6ff" />
+      <path d={body.torso} className="stroke-[#f7c1ff]" />
+      <path d={body.arms} className="stroke-[#f7c1ff]" />
+      <path d={body.legs} className="stroke-[#f7c1ff]" />
+    </g>
+  );
+}
+
+function ExerciseIllustration({ type, checked }) {
+  const meta = getExerciseDemoMeta(type);
+  const visual = EXERCISE_SVG_DEMOS[type] || EXERCISE_SVG_DEMOS.spark;
+  const frames = visual.frames || EXERCISE_SVG_DEMOS.spark.frames;
+
+  return (
+    <span
+      className={`relative grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-2xl border transition ${
+        checked
+          ? "border-pink-200/60 bg-gradient-to-br from-pink-500 to-orange-400"
+          : "border-fuchsia-300/15 bg-gradient-to-br from-[#080b18] via-[#141026] to-[#211139]"
+      }`}
+      aria-hidden="true"
+    >
+      <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(236,72,153,0.32),transparent_48%)]" />
+      <span className="absolute inset-x-4 bottom-4 h-4 rounded-full bg-fuchsia-300/25 blur-md" />
+      <span className="absolute left-2 top-2 rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-fuchsia-100">
+        demo
+      </span>
+      <span className="absolute right-2 top-2 flex gap-1">
+        <span className="h-2 w-2 rounded-full bg-cyan-300" />
+        <span className="h-2 w-2 rounded-full bg-pink-300" />
+      </span>
+      <svg viewBox="0 0 100 100" className="relative z-10 h-[86px] w-[86px] overflow-visible">
+        <defs>
+          <filter id={`exercise-glow-${type}`} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <g
+          filter={`url(#exercise-glow-${type})`}
+          fill="none"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <ExercisePose pose={frames[0]} begin="0s" />
+          <ExercisePose pose={frames[1]} begin="0.8s" />
+          <ExercisePose pose={frames[2]} begin="1.6s" />
+        </g>
+        {visual.arrow !== "hold" && (
+          <g className="stroke-cyan-200/80" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M73 22 C82 31 82 43 74 52">
+              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" />
+            </path>
+            <path d="M74 52 L70 45 M74 52 L81 50">
+              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" />
+            </path>
+          </g>
+        )}
+      </svg>
+      <span className="absolute bottom-2 left-2 right-2 truncate rounded-full bg-white/10 px-2 py-1 text-center text-[9px] font-black text-white/85">
+        {visual.label || meta.label}
       </span>
     </span>
   );
