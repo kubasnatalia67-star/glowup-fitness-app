@@ -112,6 +112,31 @@ const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.UpcE,
 ];
 
+const isDemoProfile = (profile = {}) => {
+  const name = String(profile.name || "").trim();
+  const normalizedName = name.toLowerCase();
+
+  return (
+    normalizedName === "анастасія" ||
+    normalizedName === "анастасия" ||
+    normalizedName.includes("анастас") ||
+    normalizedName.includes("рђрЅр°сѓ") ||
+    normalizedName.includes("рђрѕр°сѓ") ||
+    name === "РђРЅР°СЃС‚Р°СЃС–СЏ"
+  );
+};
+
+const emptyUserProfile = {
+  name: "",
+  gender: "",
+  age: "",
+  height: "",
+  startWeight: "",
+  weight: "",
+  goalWeight: "",
+  goal: "",
+};
+
 const WORKOUT_EXERCISE_ILLUSTRATIONS = {
   "legs-glutes-1": ["squat", "bridge", "lunge", "hinge", "spark"],
   "arms-triceps": ["pushup", "dip", "armRaise", "plank", "spark"],
@@ -589,13 +614,13 @@ export default function FitnessHabitsApp() {
     () => localStorage.getItem("voiceEnabled") !== "false"
   );
   const [voicePreset, setVoicePreset] = useState(
-    () => localStorage.getItem("voicePreset") || "calm"
+    () => localStorage.getItem("voicePreset") || "coach"
   );
   const [voiceRate, setVoiceRate] = useState(
-    () => Number(localStorage.getItem("voiceRate")) || CHARLIE_VOICE_PRESETS.calm.rate
+    () => Number(localStorage.getItem("voiceRate")) || CHARLIE_VOICE_PRESETS.coach.rate
   );
   const [voicePitch, setVoicePitch] = useState(
-    () => Number(localStorage.getItem("voicePitch")) || CHARLIE_VOICE_PRESETS.calm.pitch
+    () => Number(localStorage.getItem("voicePitch")) || CHARLIE_VOICE_PRESETS.coach.pitch
   );
   const [voiceMessage, setVoiceMessage] = useState("");
   const [measurements, setMeasurements] = useState(() => readJson("bodyMeasurements", []));
@@ -737,31 +762,27 @@ export default function FitnessHabitsApp() {
   const [progressChartType, setProgressChartType] = useState("steps");
   const [showProfile, setShowProfile] = useState(false);
   const [profile, setProfile] = useState(() => {
-    const savedProfile = readJson("userProfile", {
-      name: "Анастасія",
-      gender: "",
-      age: "",
-      height: "",
-      startWeight: "68",
-      weight: "68",
-      goalWeight: "55",
-      goal: "Схуднути",
-    });
+    const savedProfile = readJson("userProfile", emptyUserProfile);
+    const cleanProfile = isDemoProfile(savedProfile) ? emptyUserProfile : savedProfile;
 
     return {
-      ...savedProfile,
-      gender: savedProfile.gender || savedGlowUpData.gender || "",
-      weight: String(savedGlowUpData.weight || savedProfile.weight || "68"),
+      ...cleanProfile,
+      gender: cleanProfile.gender || savedGlowUpData.gender || "",
+      weight: String(savedGlowUpData.weight || cleanProfile.weight || ""),
     };
   });
   const [onboardingComplete, setOnboardingComplete] = useState(
-    () => localStorage.getItem(ONBOARDING_KEY) === "true"
+    () =>
+      localStorage.getItem(ONBOARDING_KEY) === "true" &&
+      Boolean(readJson("userProfile", null)?.name?.trim()) &&
+      !isDemoProfile(readJson("userProfile", null))
   );
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingData, setOnboardingData] = useState(() =>
     readJson(ONBOARDING_DATA_KEY, {
       goal: profile.goal || "",
       gender: profile.gender || "",
+      name: profile.name || "",
       weight: profile.weight || "",
       height: profile.height || "",
       age: profile.age || "",
@@ -781,7 +802,7 @@ export default function FitnessHabitsApp() {
 
   const [weightInput, setWeightInput] = useState("");
   const [currentWeight, setCurrentWeight] = useState(
-    () => Number(savedGlowUpData.weight) || Number(profile.weight) || 68
+    () => Number(savedGlowUpData.weight) || Number(profile.weight) || 0
   );
 
   const [waterGlasses, setWaterGlasses] = useState(() =>
@@ -816,6 +837,9 @@ export default function FitnessHabitsApp() {
   const [stepsSourceMessage, setStepsSourceMessage] = useState("");
   const [stepsSensorStatus, setStepsSensorStatus] = useState(null);
   const [calories, setCalories] = useState(1450);
+  const [activeWorkout, setActiveWorkout] = useState(() =>
+    readJson("activeWorkout", null)
+  );
 
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiAnswer, setAiAnswer] = useState(
@@ -1427,7 +1451,7 @@ export default function FitnessHabitsApp() {
       completedAt: saved.completedAt || "",
     };
   });
-  const profileName = profile.name?.trim() || "Анастасія";
+  const profileName = profile.name?.trim() || "подруго";
   const t = (key) => {
     const pack = TRANSLATIONS[appLanguage] || TRANSLATIONS.en;
     return pack[key] || TRANSLATIONS.en[key] || TRANSLATIONS.uk[key] || key;
@@ -3266,6 +3290,15 @@ export default function FitnessHabitsApp() {
         completed: completedExercises.length === workout.exercises.length,
       };
     });
+    if (activeWorkout?.id === workout.id) {
+      const nextExercise = Math.min(exerciseIndex + 1, workout.exercises.length - 1);
+      const nextActiveWorkout = {
+        ...activeWorkout,
+        currentExercise: nextExercise,
+      };
+      setActiveWorkout(nextActiveWorkout);
+      localStorage.setItem("activeWorkout", JSON.stringify(nextActiveWorkout));
+    }
   };
 
   const startWeeklyWorkout = (workout, index) => {
@@ -3273,6 +3306,24 @@ export default function FitnessHabitsApp() {
     setDashboardTab("training");
     changeTimerMinutes(workout.duration);
     setIsTimerRunning(true);
+    const nextActiveWorkout = {
+      id: workout.id,
+      title: workout.title,
+      startedAt: new Date().toISOString(),
+      currentExercise: 0,
+    };
+    setActiveWorkout(nextActiveWorkout);
+    localStorage.setItem("activeWorkout", JSON.stringify(nextActiveWorkout));
+    setCharlieMessages((messages) => [
+      ...messages,
+      {
+        role: "assistant",
+        text: `Починаємо "${workout.title}". Перша вправа: ${workout.exercises[0]?.name || "розминка"}. Виконуй спокійно, я тримаю таймер.`,
+      },
+    ]);
+    if (settingsToggles.vibration && navigator.vibrate) {
+      navigator.vibrate([40, 25, 40]);
+    }
   };
 
   const changeWorkoutDifficulty = (level) => {
@@ -3313,6 +3364,8 @@ export default function FitnessHabitsApp() {
       completedAt: new Date().toISOString(),
       completedDate: getLocalDateKey(),
     }));
+    setActiveWorkout(null);
+    localStorage.removeItem("activeWorkout");
 
     if (!wasCompleted) {
       awardXp(workoutXpKey, 50, "Тренування виконано");
@@ -3530,13 +3583,14 @@ export default function FitnessHabitsApp() {
   };
 
   const finishOnboarding = () => {
-    const nextWeight = toNumber(onboardingData.weight, currentWeight || 68);
+    const nextWeight = toNumber(onboardingData.weight, currentWeight || 0);
     const nextProfile = {
       ...profile,
+      name: onboardingData.name?.trim() || profile.name || "",
       gender: onboardingData.gender || profile.gender,
       goal: onboardingData.goal || profile.goal,
-      weight: String(nextWeight),
-      startWeight: profile.startWeight || String(nextWeight),
+      weight: nextWeight ? String(nextWeight) : "",
+      startWeight: profile.startWeight || (nextWeight ? String(nextWeight) : ""),
       height: onboardingData.height || profile.height,
       age: onboardingData.age || profile.age,
       activity: onboardingData.activity,
@@ -3743,7 +3797,21 @@ export default function FitnessHabitsApp() {
               )}
 
               {onboardingStep === 3 && (
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-sm font-semibold text-white/60">
+                      Ім'я
+                    </span>
+                    <input
+                      type="text"
+                      value={onboardingData.name || ""}
+                      onChange={(event) =>
+                        updateOnboardingField("name", event.target.value)
+                      }
+                      placeholder="Як тебе звати?"
+                      className="w-full rounded-2xl border border-white/10 bg-[#2a2542] p-4 text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                    />
+                  </label>
                   {[
                     ["weight", "Вага, кг", "68"],
                     ["height", "Зріст, см", "170"],
@@ -4911,6 +4979,7 @@ export default function FitnessHabitsApp() {
               </div>
             </header>
 
+            {dashboardTab === "home" && (
             <section className="glow-card p-5 sm:p-6">
               <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -4972,6 +5041,7 @@ export default function FitnessHabitsApp() {
                 </div>
               </div>
             </section>
+            )}
 
             <div className="rounded-3xl bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shadow-lg">
               <p className="text-sm opacity-80">Мотивація дня</p>
@@ -6507,6 +6577,22 @@ export default function FitnessHabitsApp() {
                         style={{ width: `${selectedSplitProgress}%` }}
                       />
                     </div>
+
+                    {activeWorkout?.id === selectedSplitWorkout.id && (
+                      <div className="mb-5 rounded-3xl border border-pink-300/30 bg-pink-500/12 p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-200">
+                          Тренування активне
+                        </p>
+                        <h4 className="mt-2 text-xl font-black">
+                          {selectedSplitWorkout.exercises[activeWorkout.currentExercise]?.name ||
+                            selectedSplitWorkout.exercises[0]?.name}
+                        </h4>
+                        <p className="mt-2 text-sm leading-relaxed text-white/65">
+                          Натискай вправи по черзі після виконання. Таймер уже запущений, а прогрес
+                          оновлюється автоматично.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="space-y-3">
                       {selectedSplitWorkout.exercises.map((exercise, index) => {
