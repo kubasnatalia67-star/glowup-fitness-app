@@ -541,10 +541,14 @@ function ExercisePose({ pose, begin = "0s" }) {
   return (
     <g>
       <animate attributeName="opacity" values="0.16;1;0.16" dur="2.4s" begin={begin} repeatCount="indefinite" />
-      <circle cx={body.head[0]} cy={body.head[1]} r="7" fill="#f6b6ff" />
-      <path d={body.torso} className="stroke-[#f7c1ff]" />
-      <path d={body.arms} className="stroke-[#f7c1ff]" />
-      <path d={body.legs} className="stroke-[#f7c1ff]" />
+      <path d={body.torso} className="stroke-fuchsia-400/25" strokeWidth="20" />
+      <path d={body.arms} className="stroke-fuchsia-400/25" strokeWidth="15" />
+      <path d={body.legs} className="stroke-fuchsia-400/25" strokeWidth="16" />
+      <path d={body.torso} className="stroke-[#f8c7ff]" strokeWidth="14" />
+      <path d={body.arms} className="stroke-[#f2a8ff]" strokeWidth="10" />
+      <path d={body.legs} className="stroke-[#f2a8ff]" strokeWidth="11" />
+      <circle cx={body.head[0]} cy={body.head[1]} r="10" fill="#f7b7ff" />
+      <circle cx={body.head[0] - 3} cy={body.head[1] - 3} r="3" fill="#fff2ff" opacity="0.85" />
     </g>
   );
 }
@@ -582,13 +586,7 @@ function ExerciseIllustration({ type, checked }) {
             </feMerge>
           </filter>
         </defs>
-        <g
-          filter={`url(#exercise-glow-${type})`}
-          fill="none"
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <g filter={`url(#exercise-glow-${type})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
           <ExercisePose pose={frames[0]} begin="0s" />
           <ExercisePose pose={frames[1]} begin="0.8s" />
           <ExercisePose pose={frames[2]} begin="1.6s" />
