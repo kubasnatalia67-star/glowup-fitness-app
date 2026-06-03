@@ -206,8 +206,35 @@ const EXERCISE_DEMO_META = {
 
 const getExerciseDemoMeta = (type) => EXERCISE_DEMO_META[type] || EXERCISE_DEMO_META.spark;
 
+const EXERCISE_DEMO_VISUALS = {
+  squat: { icon: "🏋️‍♀️", label: "присід", motion: "↕" },
+  bridge: { icon: "🧘‍♀️", label: "місток", motion: "↥" },
+  lunge: { icon: "🤸‍♀️", label: "випад", motion: "↘" },
+  hinge: { icon: "🏋️‍♀️", label: "тяга", motion: "↙" },
+  pushup: { icon: "💪", label: "віджим", motion: "↕" },
+  dip: { icon: "💪", label: "трицепс", motion: "↧" },
+  armRaise: { icon: "🙆‍♀️", label: "руки", motion: "↥" },
+  plank: { icon: "🧘‍♀️", label: "планка", motion: "━" },
+  superman: { icon: "🤸‍♀️", label: "superman", motion: "⇡" },
+  birdDog: { icon: "🧘‍♀️", label: "баланс", motion: "⇄" },
+  row: { icon: "🚣‍♀️", label: "тяга", motion: "⇠" },
+  wallAngel: { icon: "🙆‍♀️", label: "постава", motion: "↥" },
+  jumpingJack: { icon: "🏃‍♀️", label: "стрибок", motion: "↔" },
+  mountainClimber: { icon: "🏃‍♀️", label: "climber", motion: "⇄" },
+  deadBug: { icon: "🧘‍♀️", label: "кор", motion: "⇄" },
+  sideLeg: { icon: "🤸‍♀️", label: "нога", motion: "↥" },
+  calfRaise: { icon: "🦵", label: "ікри", motion: "↥" },
+  snowAngel: { icon: "🙆‍♀️", label: "спина", motion: "⌒" },
+  catCow: { icon: "🧘‍♀️", label: "йога", motion: "∿" },
+  stretch: { icon: "🧘‍♀️", label: "стретч", motion: "↘" },
+  childPose: { icon: "🧘‍♀️", label: "релакс", motion: "…" },
+  breath: { icon: "🫁", label: "дихання", motion: "4-6" },
+  spark: { icon: "✨", label: "комбо", motion: "★" },
+};
+
 function ExerciseIllustration({ type, checked }) {
   const meta = getExerciseDemoMeta(type);
+  const visual = EXERCISE_DEMO_VISUALS[type] || EXERCISE_DEMO_VISUALS.spark;
   const stroke = checked ? "#ffffff" : "#fde68a";
   const accent = checked ? "#f9a8d4" : "#67e8f9";
   const common = {
@@ -415,27 +442,34 @@ function ExerciseIllustration({ type, checked }) {
 
   return (
     <span
-      className={`relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border transition ${
+      className={`relative grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-2xl border transition ${
         checked
           ? "border-pink-300/50 bg-gradient-to-br from-pink-500 to-orange-400"
-          : "border-white/10 bg-gradient-to-br from-[#10162f] via-[#15122d] to-[#25143a]"
+          : "border-white/10 bg-gradient-to-br from-[#10162f] via-[#15122d] to-[#281747]"
       }`}
       aria-hidden="true"
     >
+      <span className="absolute inset-x-3 bottom-3 h-3 rounded-full bg-gradient-to-r from-cyan-300/35 via-pink-300/35 to-orange-300/35 blur-[1px]" />
       <span className="absolute left-2 top-2 rounded-full bg-black/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/75">
-        demo
+        {visual.label}
       </span>
-      <span className="absolute bottom-1.5 left-2 right-2 truncate rounded-full bg-white/10 px-2 py-0.5 text-center text-[9px] font-bold text-white/80">
+      <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/12 text-sm font-black text-cyan-100">
+        {visual.motion}
+      </span>
+      <span className="absolute left-3 right-3 top-10 h-10 rounded-full border border-white/10 bg-white/5" />
+      <span className="absolute left-4 top-12 text-sm text-cyan-200/75">‹</span>
+      <span className="absolute right-4 top-12 text-sm text-pink-200/75">›</span>
+      <span
+        className={`relative z-10 grid h-16 w-16 place-items-center rounded-full bg-white/10 text-4xl shadow-[0_0_22px_rgba(236,72,153,0.28)] ${
+          checked ? "scale-105" : "animate-bounce"
+        }`}
+        style={{ animationDuration: "1.8s" }}
+      >
+        {visual.icon}
+      </span>
+      <span className="absolute bottom-1.5 left-2 right-2 truncate rounded-full bg-black/25 px-2 py-0.5 text-center text-[9px] font-bold text-white/80">
         {meta.motion}
       </span>
-      <span className="absolute right-2 top-2 flex gap-0.5">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pink-300 [animation-delay:160ms]" />
-      </span>
-      <svg viewBox="0 0 68 68" className="h-14 w-14 animate-pulse drop-shadow-[0_0_12px_rgba(103,232,249,0.35)]">
-        <path d="M10 57 C22 51 45 51 58 57" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="3" strokeLinecap="round" />
-        <g>{drawings[type] || drawings.spark}</g>
-      </svg>
     </span>
   );
 }
