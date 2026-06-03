@@ -1,9 +1,16 @@
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp Charlie]";
 
 export async function askCharlie({ message, messages, profile, language }) {
   const apiUrl = getCharlieApiUrl();
+  const payload = {
+    message,
+    messages,
+    profile,
+    language,
+  };
 
   console.log(`${DEBUG_PREFIX} API request`, {
     apiUrl,
@@ -12,17 +19,16 @@ export async function askCharlie({ message, messages, profile, language }) {
     language,
   });
 
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+    return askCharlieWithNativeHttp(apiUrl, payload);
+  }
+
   let response;
   try {
     response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        messages,
-        profile,
-        language,
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     console.error(`${DEBUG_PREFIX} request failed`, error);
@@ -48,6 +54,39 @@ export async function askCharlie({ message, messages, profile, language }) {
   }
 
   return result;
+}
+
+async function askCharlieWithNativeHttp(apiUrl, payload) {
+  try {
+    const response = await CapacitorHttp.post({
+      url: apiUrl,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      data: payload,
+      responseType: "json",
+    });
+
+    console.log(`${DEBUG_PREFIX} native HTTP response`, {
+      status: response.status,
+      data: response.data,
+    });
+
+    const result =
+      typeof response.data === "string" ? parseJsonResponse(response.data) : response.data || {};
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(result.error || `API /api/charlie повернув ${response.status}`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`${DEBUG_PREFIX} native request failed`, error);
+    throw new Error(
+      `Не вдалося підключитися до /api/charlie: ${error.message}. ${getAndroidApiHint()}`
+    );
+  }
 }
 
 function getCharlieApiUrl() {

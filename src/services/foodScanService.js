@@ -1,33 +1,138 @@
-import { Capacitor } from "@capacitor/core";
-import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { getAndroidApiHint, getAndroidDevApiBaseUrl, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp AI Food Scan]";
+const ANALYZE_FOOD_PATH = "/api/analyze-food";
 
-export async function analyzeFoodImage({ image, foodName }) {
+export async function analyzeFoodImage({ image, foodName, language = "uk" }) {
+  if (shouldUseNativeAndroidHttp(image)) {
+    return analyzeFoodImageWithNativeHttp({ image, foodName, language });
+  }
+
   const imageFile = await normalizeImageToFile(image);
-  const apiUrl = getAnalyzeFoodApiUrl();
-  const formData = new FormData();
+  const apiUrls = getAnalyzeFoodApiUrls();
+  let lastNetworkError = null;
 
-  formData.append("image", imageFile, imageFile.name || "food-photo.jpg");
-  formData.append("foodName", foodName || "");
+  for (const apiUrl of apiUrls) {
+    const formData = new FormData();
+    formData.append("image", imageFile, imageFile.name || "food-photo.jpg");
+    formData.append("foodName", foodName || "");
+    formData.append("language", language || "uk");
 
-  logFormData(formData, imageFile, apiUrl);
+    logFormData(formData, imageFile, apiUrl);
 
-  let response;
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        body: formData,
+      });
+      return await parseAnalyzeFoodResponse(response, apiUrl);
+    } catch (error) {
+      lastNetworkError = error;
+      console.error(`${DEBUG_PREFIX} request failed`, { apiUrl, error });
+    }
+  }
+
+  throw new Error(
+    `Не вдалося підключитися до ${apiUrls.join(" або ")}: ${
+      lastNetworkError?.message || "network request failed"
+    }. ${getAndroidApiHint()}`
+  );
+}
+
+async function analyzeFoodImageWithNativeHttp({ image, foodName, language }) {
+  console.log(`${DEBUG_PREFIX} selected image`, describeImage(image));
+
+  const apiUrls = getAnalyzeFoodApiUrls();
+  let lastNetworkError = null;
+
+  for (const apiUrl of apiUrls) {
+    try {
+      console.log(`${DEBUG_PREFIX} native HTTP request`, {
+        apiUrl,
+        imageChars: image.length,
+        approxBytes: estimateDataUrlBytes(image),
+        foodName: foodName || "",
+        language: language || "uk",
+      });
+
+      const response = await CapacitorHttp.post({
+        url: apiUrl,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        data: {
+          image,
+          foodName: foodName || "",
+          language: language || "uk",
+        },
+        responseType: "json",
+      });
+
+      console.log(`${DEBUG_PREFIX} native HTTP response`, {
+        apiUrl,
+        status: response.status,
+        data: response.data,
+      });
+
+      return parseNativeHttpResponse(response, apiUrl);
+    } catch (error) {
+      lastNetworkError = error;
+      console.error(`${DEBUG_PREFIX} native HTTP request failed`, { apiUrl, error });
+    }
+  }
+
+  throw new Error(
+    `Не вдалося підключитися до ${apiUrls.join(" або ")}: ${
+      lastNetworkError?.message || "native network request failed"
+    }. ${getAndroidApiHint()}`
+  );
+}
+
+function getAnalyzeFoodApiUrls() {
+  const urls = [];
+
   try {
-    response = await fetch(apiUrl, {
-      method: "POST",
-      body: formData,
-    });
+    urls.push(getApiUrl(ANALYZE_FOOD_PATH));
   } catch (error) {
-    console.error(`${DEBUG_PREFIX} request failed`, error);
+    console.error(`${DEBUG_PREFIX} API endpoint unavailable`, { reason: error.message });
+  }
+
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+    const fallbackUrl = `${getAndroidDevApiBaseUrl()}${ANALYZE_FOOD_PATH}`;
+    urls.push(fallbackUrl);
+  }
+
+  return [...new Set(urls)].filter(Boolean);
+}
+
+function shouldUseNativeAndroidHttp(image) {
+  return (
+    Capacitor.isNativePlatform() &&
+    Capacitor.getPlatform() === "android" &&
+    typeof image === "string" &&
+    image.startsWith("data:image/")
+  );
+}
+
+function parseNativeHttpResponse(response, apiUrl) {
+  const result =
+    typeof response.data === "string" ? parseJsonResponse(response.data) : response.data || {};
+
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(
-      `Не вдалося підключитися до /api/analyze-food: ${error.message}. ${getAndroidApiHint()}`
+      result.error || `API ${apiUrl} повернув ${response.status}`.trim()
     );
   }
 
+  return result;
+}
+
+async function parseAnalyzeFoodResponse(response, apiUrl) {
   const responseText = await response.text();
   console.log(`${DEBUG_PREFIX} API response`, {
+    apiUrl,
     ok: response.ok,
     status: response.status,
     statusText: response.statusText,
@@ -39,21 +144,11 @@ export async function analyzeFoodImage({ image, foodName }) {
   if (!response.ok) {
     throw new Error(
       result.error ||
-        `API /api/analyze-food повернув ${response.status} ${response.statusText || ""}`.trim()
+        `API ${apiUrl} повернув ${response.status} ${response.statusText || ""}`.trim()
     );
   }
 
   return result;
-}
-
-function getAnalyzeFoodApiUrl() {
-  try {
-    return getApiUrl("/api/analyze-food");
-  } catch (error) {
-    const message = error.message;
-    console.error(`${DEBUG_PREFIX} API endpoint unavailable`, { reason: message });
-    throw new Error(message);
-  }
 }
 
 async function normalizeImageToFile(image) {
@@ -117,6 +212,12 @@ function dataUrlToFile(dataUrl, filename) {
   }
 
   return new File([bytes], filename, { type: mimeType });
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const base64Data = dataUrl.split(",")[1] || "";
+  const padding = base64Data.endsWith("==") ? 2 : base64Data.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64Data.length * 3) / 4) - padding);
 }
 
 function describeImage(image) {

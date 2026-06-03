@@ -1,24 +1,25 @@
 import { existsSync, readFileSync } from "node:fs";
 import http from "node:http";
 import { Readable } from "node:stream";
-import { createServer as createViteServer } from "vite";
 
 const cliOptions = readCliOptions();
-const host = cliOptions.host || process.env.HOST || "127.0.0.1";
+const isProduction = process.env.NODE_ENV === "production" || process.env.API_ONLY === "true";
+const host = cliOptions.host || process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
 const port = Number(cliOptions.port || process.env.PORT || 5199);
 
 loadLocalEnv();
 
-const vite = await createViteServer({
-  appType: "spa",
-  server: {
-    host,
-    middlewareMode: true,
-  },
-});
+const vite = isProduction ? null : await createViteMiddleware();
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${host}:${port}`);
+  applyCorsHeaders(response);
+
+  if (request.method === "OPTIONS") {
+    response.writeHead(204);
+    response.end();
+    return;
+  }
 
   if (url.pathname === "/api/health") {
     sendJson(response, 200, {
@@ -70,9 +71,17 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  vite.middlewares(request, response, () => {
-    response.statusCode = 404;
-    response.end("Not found");
+  if (vite) {
+    vite.middlewares(request, response, () => {
+      response.statusCode = 404;
+      response.end("Not found");
+    });
+    return;
+  }
+
+  sendJson(response, 404, {
+    error: "Not found.",
+    ok: false,
   });
 });
 
@@ -87,12 +96,24 @@ server.on("error", (error) => {
 
 server.listen(port, host, () => {
   const displayHost = host === "0.0.0.0" ? "your-phone-ip" : host;
-  console.log(`GlowUp dev server: http://${displayHost}:${port}/`);
+  console.log(`GlowUp ${isProduction ? "API" : "dev"} server: http://${displayHost}:${port}/`);
   if (host === "0.0.0.0") {
     console.log("Phone mode: open this app from your phone using your laptop Wi-Fi IPv4 address.");
   }
   console.log(`OpenAI key configured: ${getOpenAiKey() ? "yes" : "no"}`);
 });
+
+async function createViteMiddleware() {
+  const { createServer: createViteServer } = await import("vite");
+
+  return createViteServer({
+    appType: "spa",
+    server: {
+      host,
+      middlewareMode: true,
+    },
+  });
+}
 
 function readCliOptions() {
   const options = {};
@@ -209,6 +230,7 @@ async function readAnalyzeFoodBody(request, url) {
   const formData = await webRequest.formData();
   const imageFile = formData.get("image");
   const foodName = String(formData.get("foodName") || "");
+  const language = String(formData.get("language") || "uk");
 
   if (!imageFile || typeof imageFile.arrayBuffer !== "function") {
     const error = new Error("Multipart image file is missing.");
@@ -225,13 +247,14 @@ async function readAnalyzeFoodBody(request, url) {
   console.log("Food analysis upload:", {
     contentType,
     foodName,
+    language,
     imageName: imageFile.name,
     imageType: mimeType,
     imageBytes: buffer.length,
     imageDataUrlChars: image.length,
   });
 
-  return { image, foodName };
+  return { image, foodName, language };
 }
 
 async function readAnalyzeBodyBody(request, url) {
@@ -291,7 +314,7 @@ async function readAnalyzeBodyBody(request, url) {
   return { image, profile };
 }
 
-async function analyzeFoodWithOpenAI({ image, foodName = "" } = {}) {
+async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } = {}) {
   const apiKey = getOpenAiKey();
   if (!apiKey) {
     const error = new Error("OPENAI_API_KEY is missing.");
@@ -307,6 +330,7 @@ async function analyzeFoodWithOpenAI({ image, foodName = "" } = {}) {
     throw error;
   }
 
+  const languageName = getLanguageName(language);
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -315,6 +339,30 @@ async function analyzeFoodWithOpenAI({ image, foodName = "" } = {}) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      instructions:
+        `Answer only in ${languageName}. ` +
+        `The app language code is "${language}". ` +
+        "Translate all user-visible text to that language. Keep JSON keys exactly as requested.",
+      text: {
+        format: {
+          type: "json_schema",
+          name: "food_analysis",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              calories: { type: "number" },
+              protein: { type: "number" },
+              fat: { type: "number" },
+              carbs: { type: "number" },
+              advice: { type: "string" },
+            },
+            required: ["name", "calories", "protein", "fat", "carbs", "advice"],
+          },
+        },
+      },
       input: [
         {
           role: "user",
@@ -324,6 +372,7 @@ async function analyzeFoodWithOpenAI({ image, foodName = "" } = {}) {
               text:
                 "Analyze this food photo. Return only JSON with this shape: " +
                 '{"name":"dish name","calories":number,"protein":number,"fat":number,"carbs":number,"advice":"short practical advice"}. ' +
+                `The values for "name" and "advice" must be written only in ${languageName}; do not use English unless ${languageName} is English. ` +
                 `If the user typed a hint, use it carefully: ${foodName || "no hint"}.`,
             },
             {
@@ -348,14 +397,15 @@ async function analyzeFoodWithOpenAI({ image, foodName = "" } = {}) {
   const data = await apiResponse.json();
   const text = data.output_text || extractOutputText(data);
   const parsed = parseFoodJson(text);
+  const localized = await localizeFoodResultIfNeeded(parsed, language);
 
   return {
-    name: String(parsed.name || "Food"),
-    calories: Number(parsed.calories) || 0,
-    protein: Number(parsed.protein) || 0,
-    fat: Number(parsed.fat) || 0,
-    carbs: Number(parsed.carbs) || 0,
-    advice: String(parsed.advice || "This is an approximate nutrition estimate."),
+    name: String(localized.name || "Food"),
+    calories: Number(localized.calories) || 0,
+    protein: Number(localized.protein) || 0,
+    fat: Number(localized.fat) || 0,
+    carbs: Number(localized.carbs) || 0,
+    advice: String(localized.advice || "This is an approximate nutrition estimate."),
     source: "openai",
   };
 }
@@ -433,6 +483,107 @@ async function analyzeBodyWithOpenAI({ image, profile = {} } = {}) {
     ]),
     source: "openai",
   };
+}
+
+async function localizeFoodResultIfNeeded(result, language) {
+  const languageCode = String(language || "uk").toLowerCase();
+  if (languageCode.startsWith("en")) return result;
+
+  const text = `${result?.name || ""} ${result?.advice || ""}`;
+  if (!looksLikeEnglishText(text)) return result;
+
+  const apiKey = getOpenAiKey();
+  const languageName = getLanguageName(languageCode);
+
+  try {
+    const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+        instructions:
+          `Translate food analysis text to ${languageName}. ` +
+          "Preserve all numeric nutrition values exactly. Return only JSON.",
+        text: {
+          format: {
+            type: "json_schema",
+            name: "localized_food_analysis",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string" },
+                calories: { type: "number" },
+                protein: { type: "number" },
+                fat: { type: "number" },
+                carbs: { type: "number" },
+                advice: { type: "string" },
+              },
+              required: ["name", "calories", "protein", "fat", "carbs", "advice"],
+            },
+          },
+        },
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text:
+                  `Translate "name" and "advice" only to ${languageName}. ` +
+                  `Keep calories/protein/fat/carbs unchanged. JSON: ${JSON.stringify({
+                    name: String(result?.name || "Food"),
+                    calories: Number(result?.calories) || 0,
+                    protein: Number(result?.protein) || 0,
+                    fat: Number(result?.fat) || 0,
+                    carbs: Number(result?.carbs) || 0,
+                    advice: String(result?.advice || "This is an approximate nutrition estimate."),
+                  })}`,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!apiResponse.ok) {
+      console.error("Food localization failed:", await apiResponse.text());
+      return result;
+    }
+
+    const data = await apiResponse.json();
+    return parseFoodJson(data.output_text || extractOutputText(data));
+  } catch (error) {
+    console.error("Food localization failed:", error.message);
+    return result;
+  }
+}
+
+function looksLikeEnglishText(text) {
+  const value = String(text || "").toLowerCase();
+  if (!/[a-z]{3}/.test(value)) return false;
+
+  const englishSignals = [
+    "combine",
+    "balanced",
+    "healthy",
+    "ingredients",
+    "protein",
+    "fats",
+    "fiber",
+    "consume",
+    "moderation",
+    "meal",
+    "food",
+    "dish",
+    "salami",
+  ];
+
+  return englishSignals.some((word) => value.includes(word));
 }
 
 async function askCharlieWithOpenAI({
@@ -598,8 +749,15 @@ function normalizeStringArray(value, fallback) {
 }
 
 function sendJson(response, statusCode, payload) {
+  applyCorsHeaders(response);
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(payload));
+}
+
+function applyCorsHeaders(response) {
+  response.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept");
 }

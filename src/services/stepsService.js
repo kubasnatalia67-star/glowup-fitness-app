@@ -10,6 +10,11 @@ export async function getAndroidTodaySteps() {
   return GlowUpSteps.getTodaySteps();
 }
 
+export async function resetAndroidStepsBaseline() {
+  if (!hasNativeStepCounter()) return null;
+  return GlowUpSteps.resetTodayBaseline();
+}
+
 export async function getAndroidStepsStatus() {
   if (!hasNativeStepCounter()) {
     return {

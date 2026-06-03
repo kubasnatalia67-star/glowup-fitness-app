@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CapacitorHttp } from "@capacitor/core";
+import { Camera, MediaTypeSelection } from "@capacitor/camera";
 import { BarcodeFormat, BarcodeScanner } from "@capacitor-mlkit/barcode-scanning";
 
 import {
@@ -93,8 +95,15 @@ import {
   getAndroidStepsStatus,
   getAndroidTodaySteps,
   hasNativeStepCounter,
+  resetAndroidStepsBaseline,
 } from "./services/stepsService.js";
-import { getGlowUpWidgetStats, hasNativeWidget, updateGlowUpWidget } from "./services/widgetService.js";
+import {
+  getGlowUpWidgetStats,
+  getGlowUpWidgetStatus,
+  hasNativeWidget,
+  requestPinGlowUpWidget,
+  updateGlowUpWidget,
+} from "./services/widgetService.js";
 
 const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.Ean8,
@@ -102,6 +111,268 @@ const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.UpcA,
   BarcodeFormat.UpcE,
 ];
+
+const WORKOUT_EXERCISE_ILLUSTRATIONS = {
+  "legs-glutes-1": ["squat", "bridge", "lunge", "hinge", "spark"],
+  "arms-triceps": ["pushup", "dip", "armRaise", "plank", "spark"],
+  "back-posture": ["superman", "birdDog", "row", "wallAngel", "spark"],
+  "cardio-abs": ["jumpingJack", "mountainClimber", "deadBug", "plank", "spark"],
+  "glutes-legs-2": ["bridge", "lunge", "sideLeg", "calfRaise", "spark"],
+  "upper-body": ["pushup", "plank", "snowAngel", "plank", "spark"],
+  "recovery-stretch": ["catCow", "stretch", "childPose", "breath", "spark"],
+};
+
+const getExerciseIllustrationType = (exercise, workout, index) => {
+  const name = String(exercise?.name || "").toLowerCase();
+
+  if (exercise?.isGoalAccent) return "spark";
+  if (/squat/.test(name)) return "squat";
+  if (/bridge|thrust/.test(name)) return "bridge";
+  if (/lunge|split/.test(name)) return "lunge";
+  if (/push|віджим|РІС–РґР¶РёРј/.test(name)) return "pushup";
+  if (/dip|triceps/.test(name)) return "dip";
+  if (/plank|планк|РїР»Р°РЅРє/.test(name)) return "plank";
+  if (/jump|cardio/.test(name)) return "jumpingJack";
+  if (/mountain/.test(name)) return "mountainClimber";
+  if (/bug/.test(name)) return "deadBug";
+  if (/superman/.test(name)) return "superman";
+  if (/bird/.test(name)) return "birdDog";
+  if (/wall/.test(name)) return "wallAngel";
+  if (/snow/.test(name)) return "snowAngel";
+  if (/cat|cow/.test(name)) return "catCow";
+  if (/stretch/.test(name)) return "stretch";
+  if (/child/.test(name)) return "childPose";
+  if (/breath|дих|РґРёС…/.test(name)) return "breath";
+  if (/calf/.test(name)) return "calfRaise";
+  if (/side leg/.test(name)) return "sideLeg";
+  if (/raise/.test(name)) return "armRaise";
+  if (/row|towel/.test(name)) return "row";
+  if (/romanian|deadlift|hinge/.test(name)) return "hinge";
+
+  return WORKOUT_EXERCISE_ILLUSTRATIONS[workout?.id]?.[index] || "spark";
+};
+
+function ExerciseIllustration({ type, checked }) {
+  const stroke = checked ? "#ffffff" : "#fde68a";
+  const accent = checked ? "#f9a8d4" : "#67e8f9";
+  const common = {
+    fill: "none",
+    stroke,
+    strokeWidth: 4,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+
+  const drawings = {
+    squat: (
+      <>
+        <circle cx="34" cy="16" r="6" fill={accent} />
+        <path {...common} d="M32 23 L25 38 L38 38 L47 51" />
+        <path {...common} d="M25 38 L16 51" />
+        <path {...common} d="M30 28 L48 31" />
+      </>
+    ),
+    bridge: (
+      <>
+        <circle cx="17" cy="38" r="5" fill={accent} />
+        <path {...common} d="M22 38 C31 20 45 20 54 38" />
+        <path {...common} d="M23 38 L10 48" />
+        <path {...common} d="M54 38 L59 49" />
+      </>
+    ),
+    lunge: (
+      <>
+        <circle cx="34" cy="15" r="6" fill={accent} />
+        <path {...common} d="M33 23 L29 38 L18 51" />
+        <path {...common} d="M29 38 L49 39 L58 51" />
+        <path {...common} d="M31 29 L47 23" />
+      </>
+    ),
+    hinge: (
+      <>
+        <circle cx="25" cy="17" r="6" fill={accent} />
+        <path {...common} d="M28 24 L45 35 L36 51" />
+        <path {...common} d="M45 35 L56 49" />
+        <path {...common} d="M40 35 L20 42" />
+      </>
+    ),
+    pushup: (
+      <>
+        <circle cx="16" cy="31" r="5" fill={accent} />
+        <path {...common} d="M22 31 L48 39 L59 39" />
+        <path {...common} d="M28 33 L25 49" />
+        <path {...common} d="M45 38 L41 51" />
+      </>
+    ),
+    dip: (
+      <>
+        <circle cx="35" cy="15" r="6" fill={accent} />
+        <path {...common} d="M35 23 L35 38 L24 48" />
+        <path {...common} d="M36 37 L50 48" />
+        <path {...common} d="M25 28 L49 28" />
+      </>
+    ),
+    armRaise: (
+      <>
+        <circle cx="34" cy="17" r="6" fill={accent} />
+        <path {...common} d="M34 24 L34 43" />
+        <path {...common} d="M33 29 L17 17" />
+        <path {...common} d="M35 29 L51 17" />
+        <path {...common} d="M34 43 L24 55" />
+        <path {...common} d="M34 43 L45 55" />
+      </>
+    ),
+    plank: (
+      <>
+        <circle cx="17" cy="28" r="5" fill={accent} />
+        <path {...common} d="M23 29 L50 35 L60 35" />
+        <path {...common} d="M27 30 L24 45" />
+        <path {...common} d="M47 34 L50 49" />
+      </>
+    ),
+    superman: (
+      <>
+        <circle cx="18" cy="31" r="5" fill={accent} />
+        <path {...common} d="M24 32 L41 34" />
+        <path {...common} d="M37 34 L58 24" />
+        <path {...common} d="M39 35 L58 47" />
+      </>
+    ),
+    birdDog: (
+      <>
+        <circle cx="23" cy="22" r="5" fill={accent} />
+        <path {...common} d="M28 25 L42 36" />
+        <path {...common} d="M33 29 L16 43" />
+        <path {...common} d="M42 36 L60 27" />
+        <path {...common} d="M42 36 L34 53" />
+      </>
+    ),
+    row: (
+      <>
+        <circle cx="23" cy="20" r="6" fill={accent} />
+        <path {...common} d="M27 27 L40 40 L33 54" />
+        <path {...common} d="M40 40 L53 51" />
+        <path {...common} d="M35 34 L54 28" />
+      </>
+    ),
+    wallAngel: (
+      <>
+        <circle cx="34" cy="14" r="6" fill={accent} />
+        <path {...common} d="M34 22 L34 47" />
+        <path {...common} d="M18 26 L34 31 L50 26" />
+        <path {...common} d="M18 14 L18 54" stroke={accent} />
+      </>
+    ),
+    jumpingJack: (
+      <>
+        <circle cx="34" cy="15" r="6" fill={accent} />
+        <path {...common} d="M34 23 L34 39" />
+        <path {...common} d="M32 27 L15 13" />
+        <path {...common} d="M36 27 L53 13" />
+        <path {...common} d="M34 39 L19 55" />
+        <path {...common} d="M34 39 L49 55" />
+      </>
+    ),
+    mountainClimber: (
+      <>
+        <circle cx="16" cy="27" r="5" fill={accent} />
+        <path {...common} d="M22 28 L45 33 L58 29" />
+        <path {...common} d="M34 31 L25 48" />
+        <path {...common} d="M45 33 L55 51" />
+      </>
+    ),
+    deadBug: (
+      <>
+        <circle cx="34" cy="36" r="5" fill={accent} />
+        <path {...common} d="M34 31 L34 49" />
+        <path {...common} d="M30 38 L15 24" />
+        <path {...common} d="M38 38 L53 24" />
+        <path {...common} d="M31 48 L20 57" />
+        <path {...common} d="M37 48 L49 57" />
+      </>
+    ),
+    sideLeg: (
+      <>
+        <circle cx="18" cy="38" r="5" fill={accent} />
+        <path {...common} d="M23 38 L46 39" />
+        <path {...common} d="M42 39 L58 29" />
+        <path {...common} d="M42 40 L58 50" />
+      </>
+    ),
+    calfRaise: (
+      <>
+        <circle cx="34" cy="15" r="6" fill={accent} />
+        <path {...common} d="M34 23 L34 43" />
+        <path {...common} d="M34 43 L25 58" />
+        <path {...common} d="M34 43 L46 58" />
+        <path {...common} d="M24 58 L19 58" />
+        <path {...common} d="M46 58 L54 55" />
+      </>
+    ),
+    snowAngel: (
+      <>
+        <circle cx="34" cy="18" r="6" fill={accent} />
+        <path {...common} d="M34 25 L34 46" />
+        <path {...common} d="M18 35 C23 26 27 23 34 25 C41 23 46 26 51 35" />
+        <path {...common} d="M34 46 L21 56" />
+        <path {...common} d="M34 46 L47 56" />
+      </>
+    ),
+    catCow: (
+      <>
+        <circle cx="18" cy="30" r="5" fill={accent} />
+        <path {...common} d="M24 32 C34 22 44 22 55 33" />
+        <path {...common} d="M30 34 L25 49" />
+        <path {...common} d="M49 34 L54 49" />
+      </>
+    ),
+    stretch: (
+      <>
+        <circle cx="33" cy="16" r="6" fill={accent} />
+        <path {...common} d="M33 23 L30 42 L17 55" />
+        <path {...common} d="M30 42 L53 49" />
+        <path {...common} d="M31 29 L50 22" />
+      </>
+    ),
+    childPose: (
+      <>
+        <circle cx="22" cy="39" r="5" fill={accent} />
+        <path {...common} d="M27 39 C34 30 45 30 53 39" />
+        <path {...common} d="M29 42 L15 51" />
+        <path {...common} d="M42 39 L58 51" />
+      </>
+    ),
+    breath: (
+      <>
+        <circle cx="25" cy="34" r="8" fill={accent} opacity="0.9" />
+        <path {...common} d="M38 28 C50 21 58 29 51 38" />
+        <path {...common} d="M39 42 C52 49 59 39 52 33" />
+        <path {...common} d="M24 48 L24 55" />
+      </>
+    ),
+    spark: (
+      <>
+        <path {...common} d="M34 10 L38 28 L56 32 L39 38 L34 56 L29 38 L12 32 L30 28 Z" />
+        <circle cx="34" cy="32" r="5" fill={accent} />
+      </>
+    ),
+  };
+
+  return (
+    <span
+      className={`grid h-16 w-16 shrink-0 place-items-center rounded-2xl border transition ${
+        checked
+          ? "border-pink-300/50 bg-gradient-to-br from-pink-500 to-orange-400"
+          : "border-white/10 bg-[#0b1022]/70"
+      }`}
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 68 68" className="h-14 w-14">
+        {drawings[type] || drawings.spark}
+      </svg>
+    </span>
+  );
+}
 
 const MANUAL_FOOD_PORTIONS = [
   {
@@ -179,12 +450,33 @@ const toPositiveNumber = (value, fallback = 0) => {
   return Number.isFinite(number) && number > 0 ? number : fallback;
 };
 
-const normalizeOpenFoodFactsProduct = (barcode, product) => {
+const getLocalizedOpenFoodFactsValue = (product, field, language = "uk") => {
+  const languageCode = String(language || "uk").toLowerCase().split("-")[0];
+  return (
+    product?.[`${field}_${languageCode}`] ||
+    product?.[field] ||
+    product?.[`${field}_uk`] ||
+    product?.[`${field}_en`] ||
+    ""
+  );
+};
+
+const getOpenFoodFactsBarcodeCandidates = (barcode) => {
+  const value = String(barcode || "").replace(/\D/g, "");
+  const candidates = [value];
+
+  if (value.length === 12) candidates.push(`0${value}`);
+  if (value.length === 13 && value.startsWith("0")) candidates.push(value.slice(1));
+  if (value.length === 8) candidates.push(value.padStart(13, "0"));
+
+  return [...new Set(candidates)].filter((item) => item.length >= 6 && item.length <= 14);
+};
+
+const normalizeOpenFoodFactsProduct = (barcode, product, language = "uk") => {
   const nutriments = product?.nutriments || {};
   const name =
-    product?.product_name ||
-    product?.product_name_en ||
-    product?.generic_name ||
+    getLocalizedOpenFoodFactsValue(product, "product_name", language) ||
+    getLocalizedOpenFoodFactsValue(product, "generic_name", language) ||
     `Barcode ${barcode}`;
 
   return {
@@ -197,14 +489,14 @@ const normalizeOpenFoodFactsProduct = (barcode, product) => {
     fat100g: toPositiveNumber(nutriments.fat_100g, 0),
     carbs100g: toPositiveNumber(nutriments.carbohydrates_100g, 0),
     ingredients:
-      product?.ingredients_text_uk ||
-      product?.ingredients_text ||
-      product?.ingredients_text_en ||
+      getLocalizedOpenFoodFactsValue(product, "ingredients_text", language) ||
       "",
     nutriScore: product?.nutriscore_grade || product?.nutriscore_2023_tags?.[0] || "",
     servingGrams: toPositiveNumber(product?.serving_quantity, 0),
     packageGrams: toPositiveNumber(product?.product_quantity, 0),
     categories: `${product?.categories || ""} ${product?.categories_tags?.join(" ") || ""}`,
+    quantity: product?.quantity || "",
+    sourceUrl: `https://world.openfoodfacts.org/product/${barcode}`,
   };
 };
 
@@ -271,6 +563,8 @@ export default function FitnessHabitsApp() {
   const [isCharlieOpen, setIsCharlieOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [widgetStatsReady, setWidgetStatsReady] = useState(() => !hasNativeWidget());
+  const [widgetStatus, setWidgetStatus] = useState(null);
+  const [widgetMessage, setWidgetMessage] = useState("");
   const [xpState, setXpState] = useState(() =>
     readJson("glowupXpState", { totalXp: 0, awarded: {} })
   );
@@ -651,6 +945,44 @@ export default function FitnessHabitsApp() {
   }, [measurementMetric, measurements]);
   const selectedMeasurementLabel =
     MEASUREMENT_FIELDS.find(([key]) => key === measurementMetric)?.[1] || "Заміри";
+  const measurementSummary = useMemo(() => {
+    const chronological = [...measurements].reverse();
+
+    return MEASUREMENT_FIELDS.map(([key, label]) => {
+      const values = chronological
+        .map((entry) => ({
+          date: entry.date,
+          value: Number(entry[key]) || 0,
+        }))
+        .filter((entry) => entry.value > 0);
+
+      if (values.length === 0) {
+        return {
+          key,
+          label,
+          first: 0,
+          latest: 0,
+          delta: 0,
+          date: "",
+          trend: "empty",
+        };
+      }
+
+      const first = values[0].value;
+      const latest = values[values.length - 1].value;
+      const delta = formatOneDecimal(latest - first);
+
+      return {
+        key,
+        label,
+        first,
+        latest,
+        delta,
+        date: values[values.length - 1].date,
+        trend: delta < 0 ? "down" : delta > 0 ? "up" : "same",
+      };
+    });
+  }, [measurements]);
   const latestAiFoodScan =
     foodDiary.find((item) => item.source === "openai") || null;
   const nutritionAiAdvice = useMemo(() => {
@@ -769,6 +1101,14 @@ export default function FitnessHabitsApp() {
   ]);
 
   const stepsProgress = Math.min(Math.round((steps / stepsGoal) * 100), 100);
+  const stepStrideMeters = Math.max(0.5, Math.min(0.9, (Number(profile.height) || 165) * 0.00414));
+  const stepsDistanceKm = formatOneDecimal(((Number(steps) || 0) * stepStrideMeters) / 1000);
+  const stepsLast7Days = progressChartSeries.steps.map((value) => Number(value) || 0);
+  const stepsAverage7Days = Math.round(
+    stepsLast7Days.reduce((sum, value) => sum + value, 0) / Math.max(stepsLast7Days.length, 1)
+  );
+  const stepsBest7Days = Math.max(...stepsLast7Days, 0);
+  const stepsAverageDistanceKm = formatOneDecimal((stepsAverage7Days * stepStrideMeters) / 1000);
   const caloriesProgress = Math.min(
     Math.round((caloriesTodayTotal / dailyNutritionGoals.calories) * 100),
     100
@@ -1371,9 +1711,11 @@ export default function FitnessHabitsApp() {
       caloriesConsumed: caloriesTodayTotal,
       dailyCaloriesGoal,
       remainingCalories,
-    }).catch((error) => {
-      console.warn("[GlowUp Widget] update failed", error);
-    });
+    })
+      .then(() => refreshGlowUpWidgetStatus())
+      .catch((error) => {
+        console.warn("[GlowUp Widget] update failed", error);
+      });
   }, [
     activeCalories,
     caloriesTodayTotal,
@@ -1626,6 +1968,60 @@ export default function FitnessHabitsApp() {
     });
   };
 
+  const pickFoodPhotoFromGallery = async () => {
+    setShowQuickActions(false);
+    setFoodAnalysisError("");
+
+    if (!isCapacitorAndroid()) {
+      openCameraFallback("food");
+      return;
+    }
+
+    try {
+      const { results = [] } = await Camera.chooseFromGallery({
+        mediaType: MediaTypeSelection.Photo,
+        allowMultipleSelection: false,
+        quality: 75,
+        targetWidth: 1200,
+        targetHeight: 1200,
+        correctOrientation: true,
+        editable: "no",
+      });
+      const photo = results[0];
+
+      if (!photo?.webPath) {
+        setFoodAnalysisError("Фото з галереї не вибрано.");
+        return;
+      }
+
+      const response = await fetch(photo.webPath);
+      if (!response.ok) {
+        throw new Error(`Не вдалося прочитати фото з галереї: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const file = new File([blob], "food-gallery-photo.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+      const image = await compressImageFile(file);
+
+      console.log("[GlowUp AI Food Scan] selected image", {
+        source: "capacitor-gallery",
+        type: photo.type,
+        format: photo.metadata?.format,
+        bytes: blob.size,
+        saved: Boolean(photo.saved),
+        chars: image.length,
+      });
+
+      setFoodPhoto(image);
+      setFoodResult(null);
+      window.requestAnimationFrame(() => analyzeFood(image));
+    } catch (error) {
+      console.error("[GlowUp AI Food Scan] gallery picker failed", error);
+      setFoodAnalysisError(error.message || "Не вдалося відкрити галерею.");
+    }
+  };
+
   const shouldUseCameraFallback = () => {
     const host = window.location.hostname;
     const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
@@ -1633,6 +2029,11 @@ export default function FitnessHabitsApp() {
   };
 
   const startCamera = async (target) => {
+    if (isCapacitorAndroid() && target === "food") {
+      openCameraFallback(target);
+      return;
+    }
+
     if (shouldUseCameraFallback()) {
       openCameraFallback(target);
       return;
@@ -1686,7 +2087,7 @@ export default function FitnessHabitsApp() {
     setFoodAnalysisLoading(true);
 
     try {
-      const result = await analyzeFoodImage({ image: imageOverride, foodName });
+      const result = await analyzeFoodImage({ image: imageOverride, foodName, language: appLanguage });
       console.log("[GlowUp AI Food Scan] analyzeFood result", result);
       setFoodResult(result);
       setFoodAnalysisError("");
@@ -1798,7 +2199,7 @@ export default function FitnessHabitsApp() {
   };
 
   const lookupBarcodeProduct = async (barcodeOverride = manualFood.barcode) => {
-    const barcode = String(barcodeOverride || "").trim();
+    const barcode = String(barcodeOverride || "").replace(/\D/g, "");
     if (!barcode) {
       showBarcodeNotice("Введи або відскануй штрихкод.");
       return null;
@@ -1809,25 +2210,49 @@ export default function FitnessHabitsApp() {
     setBarcodeProduct(null);
 
     try {
-      const response = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`
-      );
-      if (!response.ok) {
-        throw new Error("Open Food Facts request failed");
+      const candidates = getOpenFoodFactsBarcodeCandidates(barcode);
+      let foundData = null;
+      let foundBarcode = barcode;
+
+      for (const candidate of candidates) {
+        const response = await fetch(
+          `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(candidate)}.json`
+        );
+        if (!response.ok) {
+          console.warn("Open Food Facts request failed", {
+            barcode: candidate,
+            status: response.status,
+          });
+          continue;
+        }
+
+        const data = await response.json();
+        console.log("[GlowUp Barcode] Open Food Facts response", {
+          requestedBarcode: barcode,
+          candidate,
+          status: data.status,
+          productName: data.product?.product_name || data.product?.product_name_en,
+        });
+
+        if (data.status === 1 && data.product) {
+          foundData = data;
+          foundBarcode = candidate;
+          break;
+        }
       }
 
-      const data = await response.json();
-      if (data.status !== 1 || !data.product) {
+      if (!foundData?.product) {
         setBarcodeProductError("Продукт не знайдено");
         showBarcodeNotice("Продукт не знайдено. Можна додати вручну й зберегти barcode.");
         return null;
       }
 
-      const product = normalizeOpenFoodFactsProduct(barcode, data.product);
+      const product = normalizeOpenFoodFactsProduct(foundBarcode, foundData.product, appLanguage);
       setBarcodeProduct(product);
       setBarcodePortionId("piece");
       setBarcodePortionCount(1);
       setBarcodeCustomGrams("");
+      setManualFood((food) => ({ ...food, barcode: foundBarcode }));
       showBarcodeNotice("Продукт знайдено. Обери порцію й додай у щоденник.");
       return product;
     } catch (error) {
@@ -1916,8 +2341,15 @@ export default function FitnessHabitsApp() {
       name: barcodeProduct.name,
       brand: barcodeProduct.brand,
       photo: barcodeProduct.photo,
+      ingredients: barcodeProduct.ingredients,
+      nutriScore: barcodeProduct.nutriScore,
+      sourceUrl: barcodeProduct.sourceUrl,
       grams: barcodeGrams,
       amount: barcodeGrams,
+      portionLabel:
+        selectedBarcodePortion?.id === "custom"
+          ? "custom grams"
+          : `${barcodePortionCount} x ${selectedBarcodePortion?.label || "portion"}`,
       calories: barcodeNutritionEstimate.calories,
       protein: Number(barcodeNutritionEstimate.protein) || 0,
       fat: Number(barcodeNutritionEstimate.fat) || 0,
@@ -2018,6 +2450,18 @@ export default function FitnessHabitsApp() {
 
   const removeMeasurement = (id) => {
     setMeasurements((items) => items.filter((item) => item.id !== id));
+  };
+
+  const fillLatestMeasurementForm = () => {
+    if (!latestMeasurement) return;
+
+    setMeasurementForm({
+      waist: latestMeasurement.waist ? String(latestMeasurement.waist) : "",
+      hips: latestMeasurement.hips ? String(latestMeasurement.hips) : "",
+      chest: latestMeasurement.chest ? String(latestMeasurement.chest) : "",
+      arm: latestMeasurement.arm ? String(latestMeasurement.arm) : "",
+      leg: latestMeasurement.leg ? String(latestMeasurement.leg) : "",
+    });
   };
 
   const handleBodyPhotoUpload = async (event) => {
@@ -2166,7 +2610,7 @@ export default function FitnessHabitsApp() {
         const availability = await getNativeTtsAvailability();
         console.log("[GlowUp Charlie TTS] native availability", availability);
         if (!availability.available) {
-          throw new Error("Увімкни синтез мовлення в налаштуваннях Android.");
+          throw new Error("\u0423\u0432\u0456\u043c\u043a\u043d\u0438 \u0441\u0438\u043d\u0442\u0435\u0437 \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f \u0432 \u043d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f\u0445 Android.");
         }
 
         const result = await speakNativeText({
@@ -2176,12 +2620,12 @@ export default function FitnessHabitsApp() {
           pitch: voicePitch,
         });
         console.log("[GlowUp Charlie TTS] native speak result", result);
-        setVoiceMessage("");
+        setVoiceMessage("\u0413\u043e\u043b\u043e\u0441 \u0427\u0430\u0440\u043b\u0456 \u043f\u0440\u0430\u0446\u044e\u0454.");
         return;
       }
 
       if (!window.speechSynthesis) {
-        setVoiceMessage("Цей браузер не підтримує синтез мовлення.");
+        setVoiceMessage("\u0426\u0435\u0439 \u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u043d\u0435 \u043f\u0456\u0434\u0442\u0440\u0438\u043c\u0443\u0454 \u0441\u0438\u043d\u0442\u0435\u0437 \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f.");
         return;
       }
 
@@ -2193,10 +2637,10 @@ export default function FitnessHabitsApp() {
       utterance.rate = voiceRate;
       utterance.pitch = voicePitch;
       window.speechSynthesis.speak(utterance);
-      setVoiceMessage("");
+      setVoiceMessage("\u0413\u043e\u043b\u043e\u0441 \u0427\u0430\u0440\u043b\u0456 \u043f\u0440\u0430\u0446\u044e\u0454.");
     } catch (error) {
       console.error("Charlie TTS failed", error);
-      setVoiceMessage(error.message || "Увімкни синтез мовлення в налаштуваннях Android.");
+      setVoiceMessage(error.message || "\u0423\u0432\u0456\u043c\u043a\u043d\u0438 \u0441\u0438\u043d\u0442\u0435\u0437 \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f \u0432 \u043d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f\u0445 Android.");
     }
   };
 
@@ -2393,13 +2837,119 @@ export default function FitnessHabitsApp() {
     setApiBaseUrl(normalized);
     if (normalized) {
       localStorage.setItem(API_BASE_URL_STORAGE_KEY, normalized);
-      setApiBaseUrlMessage(`API Base URL збережено: ${normalized}`);
+      setApiBaseUrlMessage("API Base URL \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e: " + normalized);
     } else {
       localStorage.removeItem(API_BASE_URL_STORAGE_KEY);
-      setApiBaseUrlMessage("API Base URL очищено. Web/PWA знову використовує /api.");
+      setApiBaseUrlMessage("API Base URL \u043e\u0447\u0438\u0449\u0435\u043d\u043e. Web/PWA \u0432\u0438\u043a\u043e\u0440\u0438\u0441\u0442\u0430\u0454 \u0432\u0456\u0434\u043d\u043e\u0441\u043d\u0438\u0439 /api, Android - fallback URL.");
     }
   };
 
+  const testApiBaseUrl = async () => {
+    const normalized = normalizeApiBaseUrl(apiBaseUrl || getConfiguredApiBaseUrl());
+    const healthUrl = normalized ? `${normalized}/api/health` : "/api/health";
+
+    setApiBaseUrlMessage("\u041f\u0435\u0440\u0435\u0432\u0456\u0440\u044f\u044e API: " + healthUrl);
+
+    try {
+      let status = 0;
+      let data = null;
+
+      if (isCapacitorAndroid() && /^https?:\/\//i.test(healthUrl)) {
+        const response = await CapacitorHttp.get({
+          url: healthUrl,
+          headers: { Accept: "application/json" },
+          responseType: "json",
+        });
+        status = response.status;
+        data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      } else {
+        const response = await fetch(healthUrl, { headers: { Accept: "application/json" } });
+        status = response.status;
+        data = await response.json();
+      }
+
+      if (status < 200 || status >= 300 || !data?.ok) {
+        throw new Error("API health returned " + status);
+      }
+
+      if (normalized) {
+        setApiBaseUrl(normalized);
+        localStorage.setItem(API_BASE_URL_STORAGE_KEY, normalized);
+      }
+
+      setApiBaseUrlMessage(
+        data.openAiConfigured
+          ? "\u0413\u043e\u0442\u043e\u0432\u043e: API \u043f\u0440\u0430\u0446\u044e\u0454, OpenAI \u043a\u043b\u044e\u0447 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0438\u0439. URL \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e: " + (normalized || "/api")
+          : "API \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u0430\u0454, \u0430\u043b\u0435 OPENAI_API_KEY \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0438\u0439 \u043d\u0430 backend."
+      );
+    } catch (error) {
+      console.error("[GlowUp API] health check failed", { healthUrl, error });
+      setApiBaseUrlMessage("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u043f\u0456\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u0438\u0441\u044f \u0434\u043e API: " + (error.message || error));
+    }
+  };
+  const refreshGlowUpWidgetStatus = async () => {
+    if (!hasNativeWidget()) {
+      setWidgetStatus({ native: false, widgetCount: 0, canRequestPin: false });
+      return null;
+    }
+
+    try {
+      const status = await getGlowUpWidgetStatus();
+      setWidgetStatus(status);
+      return status;
+    } catch (error) {
+      console.warn("[GlowUp Widget] status failed", error);
+      setWidgetMessage("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u043f\u0435\u0440\u0435\u0432\u0456\u0440\u0438\u0442\u0438 Android widget: " + (error.message || error));
+      return null;
+    }
+  };
+
+  const syncGlowUpWidgetNow = async () => {
+    if (!hasNativeWidget()) {
+      setWidgetMessage("\u0412\u0456\u0434\u0436\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0438\u0439 \u043b\u0438\u0448\u0435 \u0432 Android \u0434\u043e\u0434\u0430\u0442\u043a\u0443.");
+      return;
+    }
+
+    try {
+      await updateGlowUpWidget({
+        waterMl: waterConsumedMl,
+        waterGoalMl: waterGoal,
+        waterDate: todayWaterKey,
+        weightKg: currentWeight ? formatOneDecimal(currentWeight) : "",
+        steps,
+        activeCalories,
+        caloriesConsumed: caloriesTodayTotal,
+        dailyCaloriesGoal,
+        remainingCalories,
+      });
+      await refreshGlowUpWidgetStatus();
+      setWidgetMessage("\u0412\u0456\u0434\u0436\u0435\u0442 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0456\u0437\u043e\u0432\u0430\u043d\u043e.");
+    } catch (error) {
+      console.warn("[GlowUp Widget] manual sync failed", error);
+      setWidgetMessage("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0456\u0437\u0443\u0432\u0430\u0442\u0438 \u0432\u0456\u0434\u0436\u0435\u0442: " + (error.message || error));
+    }
+  };
+
+  const requestGlowUpWidgetPin = async () => {
+    if (!hasNativeWidget()) {
+      setWidgetMessage("\u0414\u043e\u0434\u0430\u0432\u0430\u043d\u043d\u044f \u0432\u0456\u0434\u0436\u0435\u0442\u0430 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0435 \u043b\u0438\u0448\u0435 \u043d\u0430 Android.");
+      return;
+    }
+
+    try {
+      await syncGlowUpWidgetNow();
+      const result = await requestPinGlowUpWidget();
+      setWidgetMessage(
+        result?.requested
+          ? "\u0412\u0456\u0434\u043a\u0440\u0438\u0442\u043e Android \u0434\u0456\u0430\u043b\u043e\u0433 \u0434\u043e\u0434\u0430\u0432\u0430\u043d\u043d\u044f \u0432\u0456\u0434\u0436\u0435\u0442\u0430."
+          : "\u041b\u0430\u0443\u043d\u0447\u0435\u0440 \u043d\u0435 \u043f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0432 \u0434\u043e\u0434\u0430\u0432\u0430\u043d\u043d\u044f. \u0421\u043f\u0440\u043e\u0431\u0443\u0439 \u0434\u043e\u0434\u0430\u0442\u0438 GlowUp \u0447\u0435\u0440\u0435\u0437 \u043c\u0435\u043d\u044e \u0432\u0456\u0434\u0436\u0435\u0442\u0456\u0432 Android."
+      );
+      window.setTimeout(refreshGlowUpWidgetStatus, 1200);
+    } catch (error) {
+      console.warn("[GlowUp Widget] pin failed", error);
+      setWidgetMessage("\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u0434\u043e\u0434\u0430\u0442\u0438 \u0432\u0456\u0434\u0436\u0435\u0442: " + (error.message || error) + ". \u0421\u043f\u0440\u043e\u0431\u0443\u0439 \u0434\u043e\u0434\u0430\u0442\u0438 GlowUp \u0432\u0440\u0443\u0447\u043d\u0443 \u0437 \u043c\u0435\u043d\u044e \u0432\u0456\u0434\u0436\u0435\u0442\u0456\u0432 Android.");
+    }
+  };
   const setVoiceEnabledChoice = (enabled) => {
     setVoiceEnabled(enabled);
     localStorage.setItem("voiceEnabled", String(enabled));
@@ -2435,7 +2985,7 @@ export default function FitnessHabitsApp() {
 
   const testCharlieVoice = async () => {
     setVoiceMessage("");
-    await speak("Привіт, Наталя! Я Чарлі, твій GlowUp помічник.", { force: true });
+    await speak("\u041f\u0440\u0438\u0432\u0456\u0442, \u041d\u0430\u0442\u0430\u043b\u044f! \u042f \u0427\u0430\u0440\u043b\u0456, \u0442\u0432\u0456\u0439 GlowUp \u043f\u043e\u043c\u0456\u0447\u043d\u0438\u043a.", { force: true });
   };
 
   const requestNotificationPermissionLegacy = () => {
@@ -2891,6 +3441,27 @@ export default function FitnessHabitsApp() {
       console.warn("[GlowUp Steps] native sync failed", error);
       await refreshAndroidStepsStatus();
       setStepsSourceMessage(error.message || "Крокомір Android недоступний. Ручне введення залишається.");
+    }
+  };
+
+  const calibrateAndroidSteps = async () => {
+    if (!hasNativeStepCounter()) {
+      setStepsSourceMessage("Калібрування доступне тільки в Android-додатку.");
+      return;
+    }
+
+    try {
+      const result = await resetAndroidStepsBaseline();
+      const status = await refreshAndroidStepsStatus();
+      setSteps(0);
+      setStepsSourceMessage(
+        `Крокомір відкалібровано. Поточний Android total: ${
+          Number(result?.totalSteps) || Number(status?.lastTotal) || 0
+        }. Пройди 20-30 кроків і натисни "Оновити кроки".`
+      );
+    } catch (error) {
+      console.warn("[GlowUp Steps] baseline reset failed", error);
+      setStepsSourceMessage(error.message || "Не вдалося відкалібрувати Android step counter.");
     }
   };
 
@@ -3458,9 +4029,9 @@ export default function FitnessHabitsApp() {
                       API
                     </span>
                     <div>
-                      <h3 className="font-bold">AI API для Android</h3>
+                      <h3 className="font-bold">AI API</h3>
                       <p className="text-xs text-white/45">
-                        Для packaged Android введи адресу backend у Wi-Fi мережі.
+                        {"\u0412\u0441\u0442\u0430\u0432 HTTPS URL production backend, \u0449\u043e\u0431 AI \u043f\u0440\u0430\u0446\u044e\u0432\u0430\u0432 \u043d\u0435 \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u043e."}
                       </p>
                     </div>
                   </div>
@@ -3472,18 +4043,27 @@ export default function FitnessHabitsApp() {
                       setApiBaseUrl(event.target.value);
                       setApiBaseUrlMessage("");
                     }}
-                    placeholder="http://192.168.1.20:5200"
+                    placeholder="https://glowup-fitness-api.onrender.com"
                     className="w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300"
                   />
-                  <button
-                    type="button"
-                    onClick={saveApiBaseUrl}
-                    className="mt-3 w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 p-3 font-bold text-white shadow-lg shadow-cyan-500/20"
-                  >
-                    Зберегти API Base URL
-                  </button>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={saveApiBaseUrl}
+                      className="rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 p-3 font-bold text-white shadow-lg shadow-cyan-500/20"
+                    >
+                      {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 URL"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={testApiBaseUrl}
+                      className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 p-3 font-bold text-cyan-50 transition hover:bg-cyan-300/15"
+                    >
+                      {"\u041f\u0435\u0440\u0435\u0432\u0456\u0440\u0438\u0442\u0438 API"}
+                    </button>
+                  </div>
                   <p className="mt-3 text-xs leading-relaxed text-white/45">
-                    Приклад: запусти `npm run dev:phone` на комп'ютері, а тут вкажи IP комп'ютера з портом 5200.
+                    {"\u041f\u0440\u0438\u043a\u043b\u0430\u0434: https://your-render-service.onrender.com. \u041f\u0435\u0440\u0435\u0432\u0456\u0440\u043a\u0430 \u043c\u0430\u0454 \u043f\u043e\u043a\u0430\u0437\u0430\u0442\u0438, \u0449\u043e backend \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0438\u0439 \u0456 OPENAI_API_KEY \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0438\u0439."}
                   </p>
                   {apiBaseUrlMessage && (
                     <p className="mt-3 rounded-2xl bg-cyan-400/10 p-3 text-sm text-cyan-100">
@@ -3491,7 +4071,6 @@ export default function FitnessHabitsApp() {
                     </p>
                   )}
                 </section>
-
                 <section className="rounded-[28px] border border-white/10 bg-[#0b1022]/80 p-3 shadow-xl shadow-pink-950/20">
                   <div className="px-2 pb-2 pt-1">
                     <h3 className="text-lg font-black">Дозволи та комфорт</h3>
@@ -3692,6 +4271,58 @@ export default function FitnessHabitsApp() {
                   </div>
                 </section>
 
+                <section className="rounded-[28px] border border-cyan-300/15 bg-white/[0.06] p-4 shadow-xl shadow-cyan-950/20">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold">Android widget</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-white/45">
+                        {"\u0412\u043e\u0434\u0430, \u0432\u0430\u0433\u0430, \u043a\u0440\u043e\u043a\u0438 \u0456 \u0448\u0432\u0438\u0434\u043a\u0435 +250 \u043c\u043b \u043d\u0430 \u0434\u043e\u043c\u0430\u0448\u043d\u044c\u043e\u043c\u0443 \u0435\u043a\u0440\u0430\u043d\u0456."}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-bold text-cyan-100">
+                      {widgetStatus?.widgetCount || 0} {"\u0430\u043a\u0442."}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={requestGlowUpWidgetPin}
+                      disabled={!hasNativeWidget() || widgetStatus?.canRequestPin === false}
+                      className="rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 p-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {"\u0414\u043e\u0434\u0430\u0442\u0438 \u0432\u0456\u0434\u0436\u0435\u0442"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={syncGlowUpWidgetNow}
+                      disabled={!hasNativeWidget()}
+                      className="rounded-2xl border border-white/10 bg-white/10 p-3 font-bold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0456\u0437\u0443\u0432\u0430\u0442\u0438"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-white/65">
+                    <span className="rounded-2xl bg-white/5 p-3">
+                      {hasNativeWidget() ? "Android" : "Web/PWA"}
+                    </span>
+                    <span className="rounded-2xl bg-white/5 p-3">
+                      {widgetStatus?.canRequestPin
+                        ? "\u041c\u043e\u0436\u043d\u0430 \u0434\u043e\u0434\u0430\u0442\u0438"
+                        : "\u0420\u0443\u0447\u043d\u0435 \u0434\u043e\u0434\u0430\u0432\u0430\u043d\u043d\u044f"}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-xs leading-relaxed text-white/45">
+                    {"\u041a\u043d\u043e\u043f\u043a\u0430 +250 \u043c\u043b \u0443 \u0432\u0456\u0434\u0436\u0435\u0442\u0456 \u043e\u043d\u043e\u0432\u043b\u044e\u0454 \u0432\u043e\u0434\u0443, \u0430 GlowUp \u043f\u0456\u0434\u0442\u044f\u0433\u043d\u0435 \u0446\u0435 \u043f\u0456\u0441\u043b\u044f \u0432\u0456\u0434\u043a\u0440\u0438\u0442\u0442\u044f \u0430\u0431\u043e \u043f\u043e\u0432\u0435\u0440\u043d\u0435\u043d\u043d\u044f \u0432 \u0434\u043e\u0434\u0430\u0442\u043e\u043a."}
+                  </p>
+                  {widgetMessage && (
+                    <p className="mt-3 rounded-2xl bg-cyan-400/10 p-3 text-sm leading-relaxed text-cyan-50">
+                      {widgetMessage}
+                    </p>
+                  )}
+                </section>
                 <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-pink-950/20">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
@@ -3737,7 +4368,7 @@ export default function FitnessHabitsApp() {
                   </div>
                   <div className="mt-4 grid gap-3">
                     <label className="text-sm font-semibold text-white/70">
-                      Speech rate: {voiceRate.toFixed(2)}
+                      {"\u0428\u0432\u0438\u0434\u043a\u0456\u0441\u0442\u044c \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f"}: {voiceRate.toFixed(2)}
                       <input
                         type="range"
                         min="0.6"
@@ -3766,7 +4397,7 @@ export default function FitnessHabitsApp() {
                     onClick={testCharlieVoice}
                     className="mt-3 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 p-3 font-bold text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.01]"
                   >
-                    Test voice
+                    {"\u0422\u0435\u0441\u0442 \u0433\u043e\u043b\u043e\u0441\u0443"}
                   </button>
                   {voiceMessage && (
                     <p className="mt-3 rounded-2xl bg-rose-500/15 p-3 text-sm text-rose-100">
@@ -4354,31 +4985,60 @@ export default function FitnessHabitsApp() {
                   </p>
                 </div>
 
-                <section className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 shadow-xl shadow-pink-950/20 sm:p-6">
+                <section className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-4 shadow-xl shadow-pink-950/20 sm:p-6">
                   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-sm font-bold uppercase tracking-[0.16em] text-pink-300">
-                        Заміри
-                      </p>
-                      <h3 className="mt-2 text-2xl font-black">Трекер замірів тіла</h3>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold uppercase tracking-[0.16em] text-pink-300">{"\u0417\u0430\u043c\u0456\u0440\u0438"}</p>
+                      <h3 className="mt-2 text-2xl font-black">{"\u0422\u0440\u0435\u043a\u0435\u0440 \u0437\u0430\u043c\u0456\u0440\u0456\u0432 \u0442\u0456\u043b\u0430"}</h3>
                       <p className="mt-2 text-sm text-white/55">
-                        Записуй талію, стегна, груди, руку й ногу в сантиметрах.
+                        {"\u0422\u0430\u043b\u0456\u044f, \u0441\u0442\u0435\u0433\u043d\u0430, \u0433\u0440\u0443\u0434\u0438, \u0440\u0443\u043a\u0430 \u0456 \u043d\u043e\u0433\u0430. GlowUp \u043f\u043e\u043a\u0430\u0436\u0435 \u0431\u0443\u043b\u043e / \u0441\u0442\u0430\u043b\u043e \u0456 \u0434\u0438\u043d\u0430\u043c\u0456\u043a\u0443."}
                       </p>
                     </div>
                     {latestMeasurement && (
-                      <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-bold text-white/70">
-                        {latestMeasurement.date}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={fillLatestMeasurementForm}
+                        className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15"
+                      >
+                        {"\u0412\u043d\u0435\u0441\u0442\u0438 \u043e\u0441\u0442\u0430\u043d\u043d\u0456"}
+                      </button>
                     )}
                   </div>
 
+                  {measurements.length > 0 && (
+                    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                      {measurementSummary.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setMeasurementMetric(item.key)}
+                          className={`rounded-2xl border p-3 text-left transition ${
+                            measurementMetric === item.key
+                              ? "border-pink-300 bg-pink-500/20"
+                              : "border-white/10 bg-white/[0.055] hover:bg-white/10"
+                          }`}
+                        >
+                          <p className="text-xs text-white/45">{item.label}</p>
+                          <p className="mt-1 text-2xl font-black">
+                            {item.latest || "-"}{item.latest ? <span className="text-xs text-white/40"> {"\u0441\u043c"}</span> : null}
+                          </p>
+                          {item.trend !== "empty" && (
+                            <p className={`mt-1 text-xs font-bold ${item.delta <= 0 ? "text-emerald-200" : "text-pink-200"}`}>
+                              {item.delta > 0 ? "+" : ""}{item.delta} {"\u0441\u043c"}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-                    <div>
+                    <div className="min-w-0">
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-2">
                         {MEASUREMENT_FIELDS.map(([key, label]) => (
-                          <label key={key} className="block text-sm font-semibold text-white/65">
+                          <label key={key} className="block min-w-0 text-sm font-semibold text-white/65">
                             {label}
-                            <div className="mt-2 flex items-center rounded-2xl border border-white/10 bg-white/5 px-3 focus-within:border-pink-400">
+                            <div className="mt-2 flex min-w-0 items-center rounded-2xl border border-white/10 bg-white/5 px-3 focus-within:border-pink-400">
                               <input
                                 type="number"
                                 inputMode="decimal"
@@ -4390,10 +5050,10 @@ export default function FitnessHabitsApp() {
                                     [key]: event.target.value,
                                   }))
                                 }
-                                className="w-full bg-transparent py-3 text-white outline-none placeholder:text-white/30"
+                                className="min-w-0 flex-1 bg-transparent py-3 text-white outline-none placeholder:text-white/30"
                                 placeholder="0"
                               />
-                              <span className="text-xs font-bold text-white/40">см</span>
+                              <span className="shrink-0 text-xs font-bold text-white/40">{"\u0441\u043c"}</span>
                             </div>
                           </label>
                         ))}
@@ -4405,22 +5065,21 @@ export default function FitnessHabitsApp() {
                         disabled={!MEASUREMENT_FIELDS.some(([key]) => Number(measurementForm[key]) > 0)}
                         className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-3 font-black text-white shadow-lg shadow-pink-500/20 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-white/45"
                       >
-                        Зберегти заміри
+                        {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u0430\u043c\u0456\u0440\u0438"}
                       </button>
                     </div>
 
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-4">
+                    <div className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.055] p-4">
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-white/45">Графік змін</p>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white/45">{"\u0413\u0440\u0430\u0444\u0456\u043a \u0437\u043c\u0456\u043d"}</p>
                           <h4 className="text-xl font-black">{selectedMeasurementLabel}</h4>
                         </div>
                         {measurementChartData.entries.length > 0 && (
                           <div className="rounded-2xl bg-white/10 px-3 py-2 text-right">
-                            <p className="text-xs text-white/45">Зміна</p>
+                            <p className="text-xs text-white/45">{"\u0417\u043c\u0456\u043d\u0430"}</p>
                             <p className={`text-lg font-black ${measurementChartData.delta <= 0 ? "text-emerald-200" : "text-pink-200"}`}>
-                              {measurementChartData.delta > 0 ? "+" : ""}
-                              {measurementChartData.delta} см
+                              {measurementChartData.delta > 0 ? "+" : ""}{measurementChartData.delta} {"\u0441\u043c"}
                             </p>
                           </div>
                         )}
@@ -4443,7 +5102,7 @@ export default function FitnessHabitsApp() {
                         ))}
                       </div>
 
-                      <div className="h-48 overflow-hidden rounded-2xl bg-[#0b1022] p-3">
+                      <div className="h-52 overflow-hidden rounded-2xl bg-[#0b1022] p-3">
                         {measurementChartData.points ? (
                           <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="none">
                             <defs>
@@ -4453,43 +5112,18 @@ export default function FitnessHabitsApp() {
                               </linearGradient>
                             </defs>
                             {[25, 50, 75].map((line) => (
-                              <line
-                                key={line}
-                                x1="0"
-                                x2="100"
-                                y1={line}
-                                y2={line}
-                                stroke="rgba(255,255,255,0.08)"
-                                strokeWidth="0.7"
-                              />
+                              <line key={line} x1="0" x2="100" y1={line} y2={line} stroke="rgba(255,255,255,0.08)" strokeWidth="0.7" />
                             ))}
-                            <polyline
-                              points={measurementChartData.points}
-                              fill="none"
-                              stroke="url(#measurementGradient)"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="4"
-                            />
+                            <polyline points={measurementChartData.points} fill="none" stroke="url(#measurementGradient)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
                             {measurementChartData.entries.map((entry, index) => {
                               const point = measurementChartData.points.split(" ")[index];
                               const [cx, cy] = point.split(",");
-                              return (
-                                <circle
-                                  key={entry.id}
-                                  cx={cx}
-                                  cy={cy}
-                                  r="2.8"
-                                  fill="#ffffff"
-                                  stroke="#ec4899"
-                                  strokeWidth="1.2"
-                                />
-                              );
+                              return <circle key={entry.id} cx={cx} cy={cy} r="2.8" fill="#ffffff" stroke="#ec4899" strokeWidth="1.2" />;
                             })}
                           </svg>
                         ) : (
                           <div className="grid h-full place-items-center text-center text-sm text-white/45">
-                            Додай перші заміри, і тут з'явиться графік змін.
+                            {"\u0414\u043e\u0434\u0430\u0439 \u043f\u0435\u0440\u0448\u0456 \u0437\u0430\u043c\u0456\u0440\u0438, \u0456 \u0442\u0443\u0442 \u0437'\u044f\u0432\u0438\u0442\u044c\u0441\u044f \u0433\u0440\u0430\u0444\u0456\u043a."}
                           </div>
                         )}
                       </div>
@@ -4497,31 +5131,19 @@ export default function FitnessHabitsApp() {
                       {measurementChartData.entries.length > 0 && (
                         <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
                           <div className="rounded-2xl bg-white/5 p-3">
-                            <p className="text-xs text-white/45">Було</p>
-                            <p className="mt-1 font-black">{measurementChartData.first} см</p>
+                            <p className="text-xs text-white/45">{"\u0411\u0443\u043b\u043e"}</p>
+                            <p className="mt-1 font-black">{measurementChartData.first} {"\u0441\u043c"}</p>
                           </div>
                           <div className="rounded-2xl bg-white/5 p-3">
-                            <p className="text-xs text-white/45">Зараз</p>
-                            <p className="mt-1 font-black">{measurementChartData.latest} см</p>
+                            <p className="text-xs text-white/45">{"\u0421\u0442\u0430\u043b\u043e"}</p>
+                            <p className="mt-1 font-black">{measurementChartData.latest} {"\u0441\u043c"}</p>
                           </div>
                           <div className="rounded-2xl bg-white/5 p-3">
-                            <p className="text-xs text-white/45">Діапазон</p>
+                            <p className="text-xs text-white/45">{"\u0414\u0456\u0430\u043f\u0430\u0437\u043e\u043d"}</p>
                             <p className="mt-1 font-black">{measurementChartData.min}-{measurementChartData.max}</p>
                           </div>
                         </div>
                       )}
-
-                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                        {MEASUREMENT_FIELDS.map(([key, label]) => (
-                          <div key={key} className="rounded-2xl bg-white/5 p-3">
-                            <p className="text-xs text-white/45">{label}</p>
-                            <p className="mt-1 text-xl font-black">
-                              {latestMeasurement?.[key] || "-"}
-                              {latestMeasurement?.[key] ? <span className="text-xs text-white/40"> см</span> : null}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
                     </div>
                   </div>
 
@@ -4529,38 +5151,26 @@ export default function FitnessHabitsApp() {
                     <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <h4 className="font-black">Історія замірів</h4>
-                          <p className="text-xs text-white/45">Останні записи, найновіші зверху</p>
+                          <h4 className="font-black">{"\u0406\u0441\u0442\u043e\u0440\u0456\u044f \u0437\u0430\u043c\u0456\u0440\u0456\u0432"}</h4>
+                          <p className="text-xs text-white/45">{"\u041e\u0441\u0442\u0430\u043d\u043d\u0456 \u0437\u0430\u043f\u0438\u0441\u0438, \u043d\u0430\u0439\u043d\u043e\u0432\u0456\u0448\u0456 \u0437\u0432\u0435\u0440\u0445\u0443"}</p>
                         </div>
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/60">
-                          {measurements.length}/30
-                        </span>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/60">{measurements.length}/30</span>
                       </div>
 
                       <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                         {measurements.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="grid gap-3 rounded-2xl bg-white/5 p-3 text-sm text-white/70 sm:grid-cols-[auto_1fr_auto] sm:items-center"
-                          >
+                          <div key={entry.id} className="grid gap-3 rounded-2xl bg-white/5 p-3 text-sm text-white/70 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
                             <div className="font-bold text-white">{entry.date}</div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                               {MEASUREMENT_FIELDS.map(([key, label]) => (
-                                <div key={key}>
+                                <div key={key} className="min-w-0">
                                   <span className="block text-[11px] text-white/35">{label}</span>
-                                  <span className="font-bold text-white">
-                                    {entry[key] || "-"}
-                                    {entry[key] ? " см" : ""}
-                                  </span>
+                                  <span className="font-bold text-white">{entry[key] || "-"}{entry[key] ? " ??" : ""}</span>
                                 </div>
                               ))}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeMeasurement(entry.id)}
-                              className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-500/25"
-                            >
-                              Видалити
+                            <button type="button" onClick={() => removeMeasurement(entry.id)} className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-500/25">
+                              {"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438"}
                             </button>
                           </div>
                         ))}
@@ -4571,11 +5181,11 @@ export default function FitnessHabitsApp() {
 
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
                   {[
-                    ["Кроки", `${steps.toLocaleString("uk-UA")}`, `${stepsProgress}% від цілі`, "👟", stepsProgress],
-                    ["Рух", `${activeCalories} ккал`, `${steps.toLocaleString("uk-UA")} кроків`, "⚡", stepsProgress],
-                    ["Вода", `${waterConsumedMl} мл`, `${waterConsumedMl} / ${waterGoal} мл`, "💧", waterProgress],
-                    ["Калорії", `${caloriesTodayTotal} ккал`, `${caloriesProgress}% від ліміту`, "🔥", caloriesProgress],
-                    ["Звички", `${completedHabits}/${habits.length}`, `${habitProgress}% виконано`, "✅", habitProgress],
+                    ["\u041a\u0440\u043e\u043a\u0438", steps.toLocaleString("uk-UA"), `${stepsProgress}% \u0432\u0456\u0434 \u0446\u0456\u043b\u0456`, "??", stepsProgress],
+                    ["\u0414\u0438\u0441\u0442\u0430\u043d\u0446\u0456\u044f", `${stepsDistanceKm} \u043a\u043c`, "\u041f\u0440\u0438\u0431\u043b\u0438\u0437\u043d\u043e \u0437\u0430 \u0441\u044c\u043e\u0433\u043e\u0434\u043d\u0456", "??", stepsProgress],
+                    ["\u0421\u0435\u0440\u0435\u0434\u043d\u0454", stepsAverage7Days.toLocaleString("uk-UA"), `${stepsAverageDistanceKm} \u043a\u043c / \u0434\u0435\u043d\u044c`, "??", Math.min(Math.round((stepsAverage7Days / stepsGoal) * 100), 100)],
+                    ["\u041d\u0430\u0439\u043a\u0440\u0430\u0449\u0438\u0439 \u0434\u0435\u043d\u044c", stepsBest7Days.toLocaleString("uk-UA"), "\u0437\u0430 \u043e\u0441\u0442\u0430\u043d\u043d\u0456 7 \u0434\u043d\u0456\u0432", "??", Math.min(Math.round((stepsBest7Days / stepsGoal) * 100), 100)],
+                    ["\u0412\u043e\u0434\u0430", `${waterConsumedMl} \u043c\u043b`, `${waterConsumedMl} / ${waterGoal} \u043c\u043b`, "??", waterProgress],
                   ].map(([title, value, subtitle, icon, progress]) => (
                     <div key={title} className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
                       <div className="mb-4 flex items-center justify-between">
@@ -4597,27 +5207,62 @@ export default function FitnessHabitsApp() {
                   ))}
                 </div>
 
-                <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-sm text-white/70 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <span>{stepsSourceMessage || "Кроки можна оновити з Android або ввести вручну."}</span>
-                    {stepsSensorStatus?.native && (
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                        <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.permissionGranted ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"}`}>
-                          Permission: {stepsSensorStatus.permissionState || "unknown"}
-                        </span>
-                        <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.hasSensor ? "bg-cyan-400/15 text-cyan-100" : "bg-yellow-400/15 text-yellow-100"}`}>
-                          Sensor: {stepsSensorStatus.hasSensor ? "available" : "missing"}
-                        </span>
-                      </div>
-                    )}
+                <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-sm text-white/70">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-bold text-white">{"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u0440\u0443\u0445\u0443"}</p>
+                      <p className="mt-1 break-words">
+                        {"\u0421\u044c\u043e\u0433\u043e\u0434\u043d\u0456: "}{steps.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432, \u043f\u0440\u0438\u0431\u043b\u0438\u0437\u043d\u043e "}{stepsDistanceKm}{" \u043a\u043c. "}
+                        {"\u0421\u0435\u0440\u0435\u0434\u043d\u0454 \u0437\u0430 7 \u0434\u043d\u0456\u0432: "}{stepsAverage7Days.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432."}
+                      </p>
+                    </div>
+                    <span className="rounded-2xl bg-emerald-400/15 px-3 py-2 text-xs font-bold text-emerald-100">
+                      {stepsSensorStatus?.available ? "Android step counter" : "Manual / fallback"}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={syncAndroidSteps}
-                    className="rounded-2xl bg-white/10 px-4 py-2 font-bold text-white transition hover:bg-white/15"
-                  >
-                    Оновити кроки
-                  </button>
+
+                  <details className="mt-3 rounded-2xl bg-white/5 p-3">
+                    <summary className="cursor-pointer text-xs font-bold text-white/60">
+                      {"\u0414\u0456\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0430 \u043a\u0440\u043e\u043a\u043e\u043c\u0456\u0440\u0430"}
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      <p className="break-words">{stepsSourceMessage || "\u041a\u0440\u043e\u043a\u0438 \u043e\u043d\u043e\u0432\u043b\u044e\u044e\u0442\u044c\u0441\u044f \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u043d\u043e \u0437 Android."}</p>
+                      {stepsSensorStatus?.native && (
+                        <div className="flex flex-wrap gap-2 text-xs font-bold">
+                          <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.permissionGranted ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"}`}>
+                            Permission: {stepsSensorStatus.permissionState || "unknown"}
+                          </span>
+                          <span className={`rounded-full px-2 py-1 ${stepsSensorStatus.hasSensor ? "bg-cyan-400/15 text-cyan-100" : "bg-yellow-400/15 text-yellow-100"}`}>
+                            Sensor: {stepsSensorStatus.hasSensor ? "available" : "missing"}
+                          </span>
+                          <span className="rounded-full bg-white/10 px-2 py-1 text-white/70">
+                            Total: {Number(stepsSensorStatus.lastTotal) || 0}
+                          </span>
+                          <span className="rounded-full bg-white/10 px-2 py-1 text-white/70">
+                            Baseline: {Number(stepsSensorStatus.baseline) || 0}
+                          </span>
+                        </div>
+                      )}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={syncAndroidSteps}
+                          className="rounded-2xl bg-white/10 px-4 py-2 font-bold text-white transition hover:bg-white/15"
+                        >
+                          {"\u041e\u043d\u043e\u0432\u0438\u0442\u0438 \u043a\u0440\u043e\u043a\u0438"}
+                        </button>
+                        {stepsSensorStatus?.native && (
+                          <button
+                            type="button"
+                            onClick={calibrateAndroidSteps}
+                            className="rounded-2xl bg-pink-500/20 px-4 py-2 font-bold text-pink-100 transition hover:bg-pink-500/30"
+                          >
+                            {"\u041a\u0430\u043b\u0456\u0431\u0440\u0443\u0432\u0430\u0442\u0438"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </details>
                 </div>
 
                 <GlowUpLevelCard glowUpLevel={glowUpLevel} totalXp={totalXp} compact />
@@ -5113,13 +5758,22 @@ export default function FitnessHabitsApp() {
                     <p className="mt-3 text-sm text-white/55">
                       Зʼїдено {caloriesTodayTotal} / {dailyNutritionGoals.calories} ккал • залишилось {nutritionLeft.calories} ккал
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => startCamera("food")}
-                      className="tap-anim mt-6 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold shadow-lg shadow-pink-500/20 hover:-translate-y-0.5"
-                    >
-                      {t("photoFood")}
-                    </button>
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => startCamera("food")}
+                        className="tap-anim w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold shadow-lg shadow-pink-500/20 hover:-translate-y-0.5"
+                      >
+                        {t("photoFood")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={pickFoodPhotoFromGallery}
+                        className="tap-anim w-full rounded-2xl bg-white/10 p-4 font-bold text-white hover:bg-white/15"
+                      >
+                        Обрати з галереї
+                      </button>
+                    </div>
                     <input
                       type="text"
                       placeholder="Наприклад: яєчня, омлет, курка з рисом"
@@ -5197,14 +5851,14 @@ export default function FitnessHabitsApp() {
 
                   <div
                     ref={manualFoodFormRef}
-                    className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6"
+                    className="glow-card w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-[#171430] p-4 sm:p-6"
                   >
                     <h3 className="text-xl font-black">Додати їжу вручну</h3>
                     <p className="mt-1 text-sm text-white/50">
                       Запиши страву без фото, і вона одразу потрапить у щоденник.
                     </p>
 
-                    <div className="mt-5 grid gap-3">
+                    <div className="mt-5 grid min-w-0 gap-3">
                       <input
                         type="text"
                         placeholder="Назва страви"
@@ -5220,15 +5874,15 @@ export default function FitnessHabitsApp() {
                             };
                           })
                         }
-                        className="rounded-2xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45"
+                        className="w-full min-w-0 rounded-2xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45"
                       />
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-3">
-                        <p className="text-sm font-bold text-pink-200">
+                      <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3">
+                        <p className="break-words text-sm font-bold leading-relaxed text-pink-200">
                           {manualFoodPortion
                             ? manualFoodPortion.label
                             : "Підказки: 1 банан ≈ 120 г, 1 яблуко ≈ 180 г, 1 яйце ≈ 50 г"}
                         </p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(140px,auto)]">
                           <label className="text-sm text-white/60">
                             Грамовка / обʼєм
                             <input
@@ -5239,10 +5893,10 @@ export default function FitnessHabitsApp() {
                               onChange={(event) =>
                                 setManualFood((food) => ({ ...food, amount: event.target.value }))
                               }
-                              className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/40"
+                              className="mt-2 w-full min-w-0 rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/40"
                             />
                           </label>
-                          <div className="rounded-xl bg-white/10 p-3 text-sm text-white/70">
+                          <div className="min-w-0 rounded-xl bg-white/10 p-3 text-sm text-white/70">
                             {manualFoodEstimate ? (
                               <>
                                 <p className="font-bold text-white">≈ {manualFoodEstimate.calories} ккал</p>
@@ -5268,7 +5922,7 @@ export default function FitnessHabitsApp() {
                         <option value="вечеря">Вечеря</option>
                         <option value="перекус">Перекус</option>
                       </select>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                         {[
                           ["calories", "Калорії"],
                           ["protein", "Білки"],
@@ -5296,7 +5950,7 @@ export default function FitnessHabitsApp() {
                             placeholder="Ввести штрихкод вручну"
                             value={manualFood.barcode}
                             onChange={(event) =>
-                              setManualFood((food) => ({ ...food, barcode: event.target.value }))
+                              setManualFood((food) => ({ ...food, barcode: event.target.value.replace(/\D/g, "") }))
                             }
                             className="rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45"
                           />
@@ -5330,8 +5984,8 @@ export default function FitnessHabitsApp() {
                           </p>
                         )}
                         {barcodeProduct && (
-                          <div className="mt-4 rounded-2xl border border-pink-300/20 bg-[#211936] p-4">
-                            <div className="flex gap-4">
+                          <div className="mt-4 overflow-hidden rounded-2xl border border-pink-300/20 bg-[#211936] p-4">
+                            <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
                               {barcodeProduct.photo ? (
                                 <img
                                   src={barcodeProduct.photo}
@@ -5347,10 +6001,20 @@ export default function FitnessHabitsApp() {
                                 <p className="text-xs font-bold uppercase text-pink-200">
                                   Open Food Facts
                                 </p>
-                                <h4 className="mt-1 text-lg font-black">{barcodeProduct.name}</h4>
+                                <h4 className="mt-1 break-words text-lg font-black">{barcodeProduct.name}</h4>
                                 {barcodeProduct.brand && (
-                                  <p className="text-sm text-white/60">{barcodeProduct.brand}</p>
+                                  <p className="break-words text-sm text-white/60">{barcodeProduct.brand}</p>
                                 )}
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/55">
+                                  <span className="rounded-full bg-white/10 px-2 py-1">
+                                    Barcode: {barcodeProduct.barcode}
+                                  </span>
+                                  {barcodeProduct.quantity && (
+                                    <span className="rounded-full bg-white/10 px-2 py-1">
+                                      {barcodeProduct.quantity}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                                   <div className="rounded-xl bg-white/10 p-2">
                                     <p className="text-white/45">100 г</p>
@@ -5373,6 +6037,16 @@ export default function FitnessHabitsApp() {
                                   <p className="mt-2 text-sm font-bold text-emerald-200">
                                     Nutri-Score: {String(barcodeProduct.nutriScore).toUpperCase()}
                                   </p>
+                                )}
+                                {barcodeProduct.sourceUrl && (
+                                  <a
+                                    href={barcodeProduct.sourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-2 inline-block text-xs font-bold text-pink-200 underline decoration-pink-300/50"
+                                  >
+                                    Open Food Facts
+                                  </a>
                                 )}
                               </div>
                             </div>
@@ -5833,6 +6507,11 @@ export default function FitnessHabitsApp() {
                     <div className="space-y-3">
                       {selectedSplitWorkout.exercises.map((exercise, index) => {
                         const checked = selectedSplitState.completedExercises?.includes(index);
+                        const illustrationType = getExerciseIllustrationType(
+                          exercise,
+                          selectedSplitWorkout,
+                          index
+                        );
 
                         return (
                           <button
@@ -5845,6 +6524,7 @@ export default function FitnessHabitsApp() {
                                 : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
                             }`}
                           >
+                            <ExerciseIllustration type={illustrationType} checked={checked} />
                             <span
                               className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black ${
                                 checked ? "bg-pink-500 text-white" : "bg-white/10 text-white/50"
@@ -6566,10 +7246,18 @@ export default function FitnessHabitsApp() {
                 <div className="grid gap-2">
                   <button
                     type="button"
-                    onClick={() => openCameraFallback("food")}
+                    onClick={() => startCamera("food")}
                     className="tap-anim rounded-2xl bg-gradient-to-r from-orange-500 to-pink-500 p-3 text-left font-bold shadow-lg shadow-pink-500/20 hover:-translate-y-0.5"
                   >
                     Сканувати їжу
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={pickFoodPhotoFromGallery}
+                    className="tap-anim rounded-2xl bg-white/10 p-3 text-left font-semibold hover:bg-white/15"
+                  >
+                    Обрати фото їжі з галереї
                   </button>
 
                   <button

@@ -35,23 +35,34 @@ public class GlowUpStepsPlugin extends Plugin {
     private static final String DATE_KEY = "date";
     private static final String BASELINE_KEY = "baseline";
     private static final String LAST_TOTAL_KEY = "lastTotal";
+    private static final String PERMISSION_MESSAGE = "Дозволь Physical activity / Activity recognition у налаштуваннях Android.";
 
     @PluginMethod
     public void getTodaySteps(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && getPermissionState("activity") != PermissionState.GRANTED) {
+        if (!hasActivityPermission()) {
             requestPermissionForAlias("activity", call, "activityPermissionCallback");
             return;
         }
 
-        readStepCounter(call);
+        readStepCounter(call, false);
+    }
+
+    @PluginMethod
+    public void resetTodayBaseline(PluginCall call) {
+        if (!hasActivityPermission()) {
+            requestPermissionForAlias("activity", call, "resetPermissionCallback");
+            return;
+        }
+
+        readStepCounter(call, true);
     }
 
     @PluginMethod
     public void getStatus(PluginCall call) {
         SensorManager sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         Sensor stepCounter = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-        boolean permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-            getPermissionState("activity") == PermissionState.GRANTED;
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean permissionGranted = hasActivityPermission();
 
         JSObject response = new JSObject();
         response.put("native", true);
@@ -60,21 +71,39 @@ public class GlowUpStepsPlugin extends Plugin {
         response.put("hasSensor", stepCounter != null);
         response.put("available", permissionGranted && stepCounter != null);
         response.put("sensorName", stepCounter == null ? "" : stepCounter.getName());
+        response.put("date", prefs.getString(DATE_KEY, ""));
+        response.put("baseline", prefs.getInt(BASELINE_KEY, 0));
+        response.put("lastTotal", prefs.getInt(LAST_TOTAL_KEY, 0));
         response.put("source", "android-step-counter");
         call.resolve(response);
     }
 
     @PermissionCallback
     private void activityPermissionCallback(PluginCall call) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || getPermissionState("activity") == PermissionState.GRANTED) {
-            readStepCounter(call);
+        if (hasActivityPermission()) {
+            readStepCounter(call, false);
             return;
         }
 
-        call.reject("Дозволь Physical activity / Activity recognition у налаштуваннях Android.");
+        call.reject(PERMISSION_MESSAGE);
     }
 
-    private void readStepCounter(PluginCall call) {
+    @PermissionCallback
+    private void resetPermissionCallback(PluginCall call) {
+        if (hasActivityPermission()) {
+            readStepCounter(call, true);
+            return;
+        }
+
+        call.reject(PERMISSION_MESSAGE);
+    }
+
+    private boolean hasActivityPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            getPermissionState("activity") == PermissionState.GRANTED;
+    }
+
+    private void readStepCounter(PluginCall call, boolean resetBaseline) {
         SensorManager sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager == null) {
             call.reject("Android step sensor недоступний на цьому пристрої.");
@@ -109,7 +138,9 @@ public class GlowUpStepsPlugin extends Plugin {
                 sensorManager.unregisterListener(this);
 
                 int totalSteps = Math.round(event.values[0]);
-                StepSnapshot snapshot = getTodaySnapshot(totalSteps);
+                StepSnapshot snapshot = resetBaseline
+                    ? resetTodaySnapshot(totalSteps)
+                    : getTodaySnapshot(totalSteps);
 
                 JSObject response = new JSObject();
                 response.put("available", true);
@@ -118,6 +149,8 @@ public class GlowUpStepsPlugin extends Plugin {
                 response.put("baseline", snapshot.baseline);
                 response.put("date", todayKey());
                 response.put("initialized", snapshot.initialized);
+                response.put("reset", resetBaseline);
+                response.put("sensorName", stepCounter.getName());
                 response.put("source", "android-step-counter");
                 call.resolve(response);
             }
@@ -164,6 +197,17 @@ public class GlowUpStepsPlugin extends Plugin {
         }
 
         return new StepSnapshot(Math.max(0, totalSteps - baseline), baseline, initialized);
+    }
+
+    private StepSnapshot resetTodaySnapshot(int totalSteps) {
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+            .putString(DATE_KEY, todayKey())
+            .putInt(BASELINE_KEY, totalSteps)
+            .putInt(LAST_TOTAL_KEY, totalSteps)
+            .apply();
+
+        return new StepSnapshot(0, totalSteps, true);
     }
 
     private static String todayKey() {

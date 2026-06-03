@@ -1,9 +1,13 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp Body Analysis]";
 
 export async function analyzeBodyImage({ image, profile }) {
+  if (shouldUseNativeAndroidHttp(image)) {
+    return analyzeBodyImageWithNativeHttp({ image, profile });
+  }
+
   const imageFile = await normalizeImageToFile(image);
   const apiUrl = getBodyAnalysisApiUrl();
   const formData = new FormData();
@@ -49,6 +53,51 @@ export async function analyzeBodyImage({ image, profile }) {
   return result;
 }
 
+async function analyzeBodyImageWithNativeHttp({ image, profile }) {
+  const apiUrl = getBodyAnalysisApiUrl();
+
+  console.log(`${DEBUG_PREFIX} native HTTP request`, {
+    apiUrl,
+    image: describeImage(image),
+    approxBytes: estimateDataUrlBytes(image),
+    profile,
+  });
+
+  try {
+    const response = await CapacitorHttp.post({
+      url: apiUrl,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      data: {
+        image,
+        profile: profile || {},
+      },
+      responseType: "json",
+    });
+
+    console.log(`${DEBUG_PREFIX} native HTTP response`, {
+      status: response.status,
+      data: response.data,
+    });
+
+    const result =
+      typeof response.data === "string" ? parseJsonResponse(response.data) : response.data || {};
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(result.error || `API /api/analyze-body повернув ${response.status}`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`${DEBUG_PREFIX} native request failed`, error);
+    throw new Error(
+      `Не вдалося підключитися до /api/analyze-body: ${error.message}. ${getAndroidApiHint()}`
+    );
+  }
+}
+
 function getBodyAnalysisApiUrl() {
   try {
     return getApiUrl("/api/analyze-body");
@@ -57,6 +106,15 @@ function getBodyAnalysisApiUrl() {
     console.error(`${DEBUG_PREFIX} API endpoint unavailable`, { reason: message });
     throw new Error(message);
   }
+}
+
+function shouldUseNativeAndroidHttp(image) {
+  return (
+    Capacitor.isNativePlatform() &&
+    Capacitor.getPlatform() === "android" &&
+    typeof image === "string" &&
+    image.startsWith("data:image/")
+  );
 }
 
 async function normalizeImageToFile(image) {
@@ -97,6 +155,12 @@ function dataUrlToFile(dataUrl, filename) {
   }
 
   return new File([bytes], filename, { type: mimeType });
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const base64Data = String(dataUrl || "").split(",")[1] || "";
+  const padding = base64Data.endsWith("==") ? 2 : base64Data.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64Data.length * 3) / 4) - padding);
 }
 
 function describeImage(image) {

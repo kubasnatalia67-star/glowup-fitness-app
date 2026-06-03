@@ -78,17 +78,17 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
         int waterProgress = Math.min(100, Math.round((waterMl * 100f) / waterGoalMl));
 
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.glowup_widget);
-        views.setTextViewText(R.id.widget_water, waterMl + " мл");
-        views.setTextViewText(R.id.widget_weight, weightText + " кг");
+        views.setTextViewText(R.id.widget_water, waterMl + " \u043c\u043b");
+        views.setTextViewText(R.id.widget_weight, weightText + " \u043a\u0433");
         views.setTextViewText(R.id.widget_steps, String.valueOf(steps));
-        views.setTextViewText(R.id.widget_active_calories, activeCalories + " ккал");
+        views.setTextViewText(R.id.widget_active_calories, activeCalories + " \u043a\u043a\u0430\u043b");
         views.setTextViewText(
             R.id.widget_calories_day,
-            "Зʼїдено " + caloriesConsumed + " | рух +" + activeCalories + " | лишилось " + remainingCalories
+            "\u0417'\u0457\u0434\u0435\u043d\u043e " + caloriesConsumed + " | \u0440\u0443\u0445 +" + activeCalories + " | \u043b\u0438\u0448\u0438\u043b\u043e\u0441\u044c " + remainingCalories
         );
         views.setTextViewText(
             R.id.widget_water_status,
-            waterMl >= waterGoalMl ? "Ціль виконана ✨" : waterMl + " / " + waterGoalMl + " мл"
+            waterMl >= waterGoalMl ? "\u0426\u0456\u043b\u044c \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u0430" : waterMl + " / " + waterGoalMl + " \u043c\u043b"
         );
         views.setProgressBar(R.id.widget_water_progress, 100, waterProgress, false);
 

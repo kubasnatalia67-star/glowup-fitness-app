@@ -8,11 +8,15 @@
     "dev:phone": "node server.mjs --host 0.0.0.0 --port 5200",
     "dev:vite": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "start": "node server.mjs",
+    "api:set": "node scripts/set-api-base-url.mjs",
+    "api:check": "node scripts/check-api.mjs"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/android": "^8.3.4",
+    "@capacitor/camera": "^8.2.0",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
     "@capacitor/local-notifications": "^8.2.0",

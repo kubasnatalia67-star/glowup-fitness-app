@@ -2,6 +2,12 @@
   box-sizing: border-box;
 }
 
+*,
+*::before,
+*::after {
+  min-width: 0;
+}
+
 html,
 body,
 #root {
@@ -44,6 +50,49 @@ select,
 textarea,
 button {
   max-width: 100%;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+span,
+label,
+button,
+a {
+  overflow-wrap: anywhere;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+}
+
+.glow-card,
+.tab-panel,
+.app-main-content,
+.app-main-content > *,
+.app-main-content section,
+.app-main-content main,
+.app-main-content article,
+.app-main-content form {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.glow-card,
+.tab-panel {
+  overflow-x: clip;
+}
+
+.grid,
+.flex {
+  min-width: 0;
 }
 
 .app-splash {

@@ -38,3 +38,26 @@ export async function getGlowUpWidgetStats() {
   if (!hasNativeWidget()) return null;
   return GlowUpWidget.getStats();
 }
+
+export async function getGlowUpWidgetStatus() {
+  if (!hasNativeWidget()) {
+    return {
+      native: false,
+      widgetCount: 0,
+      canRequestPin: false,
+    };
+  }
+
+  return GlowUpWidget.getStatus();
+}
+
+export async function requestPinGlowUpWidget() {
+  if (!hasNativeWidget()) {
+    return {
+      requested: false,
+      reason: "native-widget-unavailable",
+    };
+  }
+
+  return GlowUpWidget.requestPinWidget();
+}

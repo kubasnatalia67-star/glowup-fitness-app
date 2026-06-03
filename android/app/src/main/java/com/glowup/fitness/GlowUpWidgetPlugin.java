@@ -1,7 +1,10 @@
 package com.glowup.fitness;
 
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -70,6 +73,50 @@ public class GlowUpWidgetPlugin extends Plugin {
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         GlowUpWidgetProvider.resetWaterIfNewDay(prefs);
 
+        call.resolve(buildStatsResponse(prefs));
+    }
+
+    @PluginMethod
+    public void getStatus(PluginCall call) {
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        GlowUpWidgetProvider.resetWaterIfNewDay(prefs);
+
+        AppWidgetManager manager = AppWidgetManager.getInstance(getContext());
+        ComponentName provider = new ComponentName(getContext(), GlowUpWidgetProvider.class);
+        int[] widgetIds = manager.getAppWidgetIds(provider);
+
+        JSObject response = buildStatsResponse(prefs);
+        response.put("native", true);
+        response.put("widgetCount", widgetIds == null ? 0 : widgetIds.length);
+        response.put(
+            "canRequestPin",
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.isRequestPinAppWidgetSupported()
+        );
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void requestPinWidget(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            call.reject("Android launcher does not support widget pinning on this version.");
+            return;
+        }
+
+        AppWidgetManager manager = AppWidgetManager.getInstance(getContext());
+        if (!manager.isRequestPinAppWidgetSupported()) {
+            call.reject("Android launcher does not support widget pinning.");
+            return;
+        }
+
+        ComponentName provider = new ComponentName(getContext(), GlowUpWidgetProvider.class);
+        boolean requested = manager.requestPinAppWidget(provider, null, null);
+
+        JSObject response = new JSObject();
+        response.put("requested", requested);
+        call.resolve(response);
+    }
+
+    private JSObject buildStatsResponse(SharedPreferences prefs) {
         int steps = prefs.getInt(STEPS_KEY, 0);
         int activeCalories = prefs.getInt(ACTIVE_CALORIES_KEY, Math.round(steps * 0.04f));
 
@@ -83,7 +130,7 @@ public class GlowUpWidgetPlugin extends Plugin {
         response.put("caloriesConsumed", prefs.getInt(CALORIES_CONSUMED_KEY, 0));
         response.put("dailyCaloriesGoal", prefs.getInt(DAILY_CALORIES_GOAL_KEY, 0));
         response.put("remainingCalories", prefs.getInt(REMAINING_CALORIES_KEY, 0));
-        call.resolve(response);
+        return response;
     }
 
     private static String todayKey() {

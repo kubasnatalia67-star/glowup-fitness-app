@@ -63,6 +63,60 @@ Expected:
 {"ok":true,"openAiConfigured":true}
 ```
 
+## Production AI Backend
+
+For Android/PWA AI features, deploy `server.mjs` as a HTTPS backend. The app should call this backend instead of a local Wi-Fi IP.
+
+Render setup:
+
+1. Create a new Render Web Service from this repo, or use `render.yaml`.
+2. Set environment variables on the server:
+
+```text
+NODE_ENV=production
+API_ONLY=true
+OPENAI_API_KEY=your_openai_key_here
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+3. Render start command:
+
+```bash
+npm start
+```
+
+4. Check the deployed API:
+
+```text
+https://your-render-service.onrender.com/api/health
+```
+
+Expected:
+
+```json
+{"ok":true,"openAiConfigured":true}
+```
+
+5. Set the Android/PWA API base URL before building:
+
+```text
+VITE_API_BASE_URL=https://your-render-service.onrender.com
+```
+
+Or use the helper:
+
+```bash
+npm run api:set -- https://your-render-service.onrender.com
+npm run api:check -- https://your-render-service.onrender.com
+```
+
+Then rebuild and sync Android:
+
+```bash
+npm run build
+npx cap sync android
+```
+
 ## Security Notes
 
 - `.env.local` is local only and excluded from backups.

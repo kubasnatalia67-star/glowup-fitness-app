@@ -32,7 +32,7 @@
             android:paddingTop="4dp"
             android:paddingRight="10dp"
             android:paddingBottom="4dp"
-            android:text="сьогодні"
+            android:text="&#x0441;&#x044C;&#x043E;&#x0433;&#x043E;&#x0434;&#x043D;&#x0456;"
             android:textColor="#FBCFE8"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -64,7 +64,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Вода"
+                    android:text="&#x0412;&#x043E;&#x0434;&#x0430;"
                     android:textColor="#B8B7C8"
                     android:textSize="10sp" />
 
@@ -72,7 +72,7 @@
                     android:id="@+id/widget_water"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 мл"
+                    android:text="0 &#x043C;&#x043B;"
                     android:textColor="#67E8F9"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -91,7 +91,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Вага"
+                    android:text="&#x0412;&#x0430;&#x0433;&#x0430;"
                     android:textColor="#B8B7C8"
                     android:textSize="10sp" />
 
@@ -99,7 +99,7 @@
                     android:id="@+id/widget_weight"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="- кг"
+                    android:text="- &#x043A;&#x0433;"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -126,7 +126,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Кроки"
+                    android:text="&#x041A;&#x0440;&#x043E;&#x043A;&#x0438;"
                     android:textColor="#B8B7C8"
                     android:textSize="10sp" />
 
@@ -153,7 +153,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Рух"
+                    android:text="&#x0420;&#x0443;&#x0445;"
                     android:textColor="#B8B7C8"
                     android:textSize="10sp" />
 
@@ -161,7 +161,7 @@
                     android:id="@+id/widget_active_calories"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 ккал"
+                    android:text="0 &#x043A;&#x043A;&#x0430;&#x043B;"
                     android:textColor="#F472B6"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -185,7 +185,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
         android:gravity="center"
-        android:text="0 / 2000 мл"
+        android:text="0 / 2000 &#x043C;&#x043B;"
         android:textColor="#E9D5FF"
         android:textSize="11sp"
         android:textStyle="bold" />
@@ -198,7 +198,7 @@
         android:ellipsize="end"
         android:gravity="center"
         android:maxLines="1"
-        android:text="Зʼїдено 0 | рух +0 | лишилось 0"
+        android:text="&#x0417;&apos;&#x0457;&#x0434;&#x0435;&#x043D;&#x043E; 0 | &#x0440;&#x0443;&#x0445; +0 | &#x043B;&#x0438;&#x0448;&#x0438;&#x043B;&#x043E;&#x0441;&#x044C; 0"
         android:textColor="#C4B5FD"
         android:textSize="10sp" />
 
@@ -209,7 +209,7 @@
         android:layout_marginTop="8dp"
         android:background="@drawable/glowup_widget_button"
         android:gravity="center"
-        android:text="+250 мл"
+        android:text="+250 &#x043C;&#x043B;"
         android:textColor="#FFFFFF"
         android:textSize="15sp"
         android:textStyle="bold" />

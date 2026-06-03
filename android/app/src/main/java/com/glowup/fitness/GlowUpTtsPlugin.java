@@ -1,6 +1,7 @@
 package com.glowup.fitness;
 
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -14,6 +15,8 @@ import java.util.Locale;
 
 @CapacitorPlugin(name = "GlowUpTts")
 public class GlowUpTtsPlugin extends Plugin {
+    private static final String MISSING_TTS_MESSAGE = "Увімкни синтез мовлення в налаштуваннях Android.";
+
     private TextToSpeech textToSpeech;
     private boolean isReady = false;
     private boolean initFailed = false;
@@ -49,6 +52,20 @@ public class GlowUpTtsPlugin extends Plugin {
 
             textToSpeech.setSpeechRate(rate == null ? 1.0f : rate);
             textToSpeech.setPitch(pitch == null ? 1.0f : pitch);
+            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override
+                public void onStart(String utteranceId) {
+                }
+
+                @Override
+                public void onDone(String utteranceId) {
+                }
+
+                @Override
+                public void onError(String utteranceId) {
+                    getBridge().executeOnMainThread(() -> rejectMissingEngine(call));
+                }
+            });
 
             int result = textToSpeech.speak(
                 text,
@@ -65,6 +82,8 @@ public class GlowUpTtsPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("spoken", true);
             response.put("language", selectedLocale.toLanguageTag());
+            response.put("rate", rate == null ? 1.0f : rate);
+            response.put("pitch", pitch == null ? 1.0f : pitch);
             call.resolve(response);
         };
 
@@ -89,6 +108,7 @@ public class GlowUpTtsPlugin extends Plugin {
         response.put("available", textToSpeech != null && !initFailed);
         response.put("ready", isReady);
         response.put("native", true);
+        response.put("message", initFailed ? MISSING_TTS_MESSAGE : "");
         call.resolve(response);
     }
 
@@ -105,17 +125,26 @@ public class GlowUpTtsPlugin extends Plugin {
 
     private List<Locale> getLocaleCandidates(String language) {
         List<Locale> locales = new ArrayList<>();
-        Locale requested = Locale.forLanguageTag(language == null ? "uk-UA" : language);
+        String languageTag = language == null ? "uk-UA" : language;
+        Locale requested = Locale.forLanguageTag(languageTag);
+        String languageCode = requested.getLanguage();
+
         locales.add(requested);
-        locales.add(Locale.forLanguageTag("uk-UA"));
-        locales.add(Locale.forLanguageTag("uk"));
-        locales.add(Locale.forLanguageTag("ru-UA"));
-        locales.add(Locale.forLanguageTag("en-US"));
+        if (!languageCode.isEmpty()) {
+            locales.add(Locale.forLanguageTag(languageCode));
+        }
+        if ("uk".equals(languageCode)) {
+            locales.add(Locale.forLanguageTag("uk-UA"));
+        }
+        if ("en".equals(languageCode)) {
+            locales.add(Locale.forLanguageTag("en-US"));
+        }
+
         return locales;
     }
 
     private void rejectMissingEngine(PluginCall call) {
-        call.reject("Увімкни синтез мовлення в налаштуваннях Android.");
+        call.reject(MISSING_TTS_MESSAGE);
     }
 
     private void initTextToSpeech(Runnable onReady) {
