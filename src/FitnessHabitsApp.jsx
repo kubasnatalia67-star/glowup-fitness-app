@@ -857,6 +857,8 @@ export default function FitnessHabitsApp() {
   const sleepQuality = getSleepQuality(sleepHours, sleepGoal);
   const sleepAdvice = getSleepAdvice(sleepHours, sleepGoal);
   const caloriesGoal = getPersonalCaloriesGoal(profile, currentWeight);
+  const showApiSettings =
+    import.meta.env.DEV || localStorage.getItem("glowupShowApiSettings") === "true";
   const dailyNutritionGoals = {
     calories: Number(nutritionGoals.calories) || caloriesGoal,
     protein: Number(nutritionGoals.protein) || 140,
@@ -4023,6 +4025,7 @@ export default function FitnessHabitsApp() {
                   </select>
                 </section>
 
+                {showApiSettings && (
                 <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-cyan-950/20">
                   <div className="mb-3 flex items-center gap-3">
                     <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 text-xl shadow-lg shadow-cyan-500/20">
@@ -4071,6 +4074,7 @@ export default function FitnessHabitsApp() {
                     </p>
                   )}
                 </section>
+                )}
                 <section className="rounded-[28px] border border-white/10 bg-[#0b1022]/80 p-3 shadow-xl shadow-pink-950/20">
                   <div className="px-2 pb-2 pt-1">
                     <h3 className="text-lg font-black">Дозволи та комфорт</h3>
