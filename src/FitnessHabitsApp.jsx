@@ -178,7 +178,36 @@ const getExerciseIllustrationType = (exercise, workout, index) => {
   return WORKOUT_EXERCISE_ILLUSTRATIONS[workout?.id]?.[index] || "spark";
 };
 
+const EXERCISE_DEMO_META = {
+  squat: { label: "Присід", cue: "Сядь назад, коліна м'яко вперед, спина рівна.", motion: "вниз-вгору" },
+  bridge: { label: "Місток", cue: "Піднімай таз, стискай сідниці у верхній точці.", motion: "таз вгору" },
+  lunge: { label: "Випад", cue: "Крок назад, корпус рівно, коліно не завалюється.", motion: "крок" },
+  hinge: { label: "Тяга", cue: "Відведи таз назад, спина довга, рух від стегон.", motion: "нахил" },
+  pushup: { label: "Віджим", cue: "Корпус однією лінією, груди до опори.", motion: "вниз-вгору" },
+  dip: { label: "Трицепс", cue: "Лікті назад, плечі вниз, рух контрольований.", motion: "лікті" },
+  armRaise: { label: "Руки", cue: "Піднімай руки без ривка, шия розслаблена.", motion: "підйом" },
+  plank: { label: "Планка", cue: "Живіт підтягнутий, таз не провалюється.", motion: "тримай" },
+  superman: { label: "Superman", cue: "Підніми груди й ноги, не закидай голову.", motion: "утримуй" },
+  birdDog: { label: "Bird dog", cue: "Рука і протилежна нога тягнуться, таз рівний.", motion: "баланс" },
+  row: { label: "Тяга", cue: "Лопатки назад і вниз, лікті йдуть до ребер.", motion: "тягни" },
+  wallAngel: { label: "Постава", cue: "Спина біля стіни, руки ковзають повільно.", motion: "вгору" },
+  jumpingJack: { label: "Кардіо", cue: "М'яке приземлення, коліна розслаблені.", motion: "ритм" },
+  mountainClimber: { label: "Climber", cue: "Планка міцна, коліна рухаються по черзі.", motion: "швидко" },
+  deadBug: { label: "Dead bug", cue: "Поперек притиснутий, рухай руку й протилежну ногу.", motion: "контроль" },
+  sideLeg: { label: "Нога", cue: "Лежачи на боці, піднімай ногу без маху.", motion: "підйом" },
+  calfRaise: { label: "Ікри", cue: "Підіймайся на носки і повільно опускайся.", motion: "носок" },
+  snowAngel: { label: "Спина", cue: "Лопатки працюють, руки малюють дугу.", motion: "дуга" },
+  catCow: { label: "Мобільність", cue: "Округли спину, потім м'яко прогнись.", motion: "хвиля" },
+  stretch: { label: "Розтяжка", cue: "Дихай спокійно, не тягни через біль.", motion: "видих" },
+  childPose: { label: "Відпочинок", cue: "Сядь назад, витягни руки і розслаб плечі.", motion: "дихай" },
+  breath: { label: "Дихання", cue: "Вдих на 4, видих на 6, плечі спокійні.", motion: "4-6" },
+  spark: { label: "Комбо", cue: "Виконуй повільно і відмічай кожен раунд.", motion: "фокус" },
+};
+
+const getExerciseDemoMeta = (type) => EXERCISE_DEMO_META[type] || EXERCISE_DEMO_META.spark;
+
 function ExerciseIllustration({ type, checked }) {
+  const meta = getExerciseDemoMeta(type);
   const stroke = checked ? "#ffffff" : "#fde68a";
   const accent = checked ? "#f9a8d4" : "#67e8f9";
   const common = {
@@ -386,15 +415,26 @@ function ExerciseIllustration({ type, checked }) {
 
   return (
     <span
-      className={`grid h-16 w-16 shrink-0 place-items-center rounded-2xl border transition ${
+      className={`relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border transition ${
         checked
           ? "border-pink-300/50 bg-gradient-to-br from-pink-500 to-orange-400"
-          : "border-white/10 bg-[#0b1022]/70"
+          : "border-white/10 bg-gradient-to-br from-[#10162f] via-[#15122d] to-[#25143a]"
       }`}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 68 68" className="h-14 w-14">
-        {drawings[type] || drawings.spark}
+      <span className="absolute left-2 top-2 rounded-full bg-black/25 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/75">
+        demo
+      </span>
+      <span className="absolute bottom-1.5 left-2 right-2 truncate rounded-full bg-white/10 px-2 py-0.5 text-center text-[9px] font-bold text-white/80">
+        {meta.motion}
+      </span>
+      <span className="absolute right-2 top-2 flex gap-0.5">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pink-300 [animation-delay:160ms]" />
+      </span>
+      <svg viewBox="0 0 68 68" className="h-14 w-14 animate-pulse drop-shadow-[0_0_12px_rgba(103,232,249,0.35)]">
+        <path d="M10 57 C22 51 45 51 58 57" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="3" strokeLinecap="round" />
+        <g>{drawings[type] || drawings.spark}</g>
       </svg>
     </span>
   );
@@ -6654,8 +6694,17 @@ export default function FitnessHabitsApp() {
                             selectedSplitWorkout.exercises[0]?.name}
                         </h4>
                         <p className="mt-2 text-sm leading-relaxed text-white/65">
-                          Натискай вправи по черзі після виконання. Таймер уже запущений, а прогрес
-                          оновлюється автоматично.
+                          {getExerciseDemoMeta(
+                            getExerciseIllustrationType(
+                              selectedSplitWorkout.exercises[activeWorkout.currentExercise] ||
+                                selectedSplitWorkout.exercises[0],
+                              selectedSplitWorkout,
+                              activeWorkout.currentExercise || 0
+                            )
+                          ).cue}
+                        </p>
+                        <p className="mt-2 text-xs leading-relaxed text-white/45">
+                          Натискай вправи по черзі після виконання. Таймер уже запущений, а прогрес оновлюється автоматично.
                         </p>
                       </div>
                     )}
@@ -6668,6 +6717,7 @@ export default function FitnessHabitsApp() {
                           selectedSplitWorkout,
                           index
                         );
+                        const demoMeta = getExerciseDemoMeta(illustrationType);
 
                         return (
                           <button
@@ -6699,6 +6749,9 @@ export default function FitnessHabitsApp() {
                               </span>
                               <span className="text-sm text-white/50">
                                 {exercise.sets} • {exercise.timer}
+                              </span>
+                              <span className="mt-1 block text-xs leading-relaxed text-white/45">
+                                {demoMeta.label}: {demoMeta.cue}
                               </span>
                             </span>
                           </button>
