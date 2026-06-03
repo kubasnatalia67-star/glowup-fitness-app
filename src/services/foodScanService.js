@@ -1,5 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
-import { getAndroidApiHint, getAndroidDevApiBaseUrl, getApiUrl } from "./apiConfigService.js";
+import { getAndroidApiHint, getDefaultApiBaseUrl, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp AI Food Scan]";
 const ANALYZE_FOOD_PATH = "/api/analyze-food";
@@ -100,7 +100,7 @@ function getAnalyzeFoodApiUrls() {
   }
 
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-    const fallbackUrl = `${getAndroidDevApiBaseUrl()}${ANALYZE_FOOD_PATH}`;
+    const fallbackUrl = `${getDefaultApiBaseUrl()}${ANALYZE_FOOD_PATH}`;
     urls.push(fallbackUrl);
   }
 

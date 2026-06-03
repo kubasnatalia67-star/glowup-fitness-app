@@ -2,8 +2,11 @@ import { Capacitor } from "@capacitor/core";
 
 export const API_BASE_URL_STORAGE_KEY = "glowupApiBaseUrl";
 
-const ANDROID_DEV_API_BASE_URL = "http://192.168.0.104:5200";
-const LEGACY_ANDROID_DEV_API_BASE_URLS = new Set(["http://192.168.0.185:5200"]);
+const DEFAULT_PRODUCTION_API_BASE_URL = "https://glowup-fitness-app.onrender.com";
+const LEGACY_DEV_API_BASE_URLS = new Set([
+  "http://192.168.0.104:5200",
+  "http://192.168.0.185:5200",
+]);
 const ENV_API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL || "");
 
 export function normalizeApiBaseUrl(value = "") {
@@ -21,8 +24,8 @@ export function getStoredApiBaseUrl() {
   const storedBaseUrl = normalizeApiBaseUrl(localStorage.getItem(API_BASE_URL_STORAGE_KEY) || "");
 
   if (
-    LEGACY_ANDROID_DEV_API_BASE_URLS.has(storedBaseUrl) ||
-    (ENV_API_BASE_URL.startsWith("https://") && isPrivateDevApiBaseUrl(storedBaseUrl))
+    LEGACY_DEV_API_BASE_URLS.has(storedBaseUrl) ||
+    (getDefaultApiBaseUrl().startsWith("https://") && isPrivateDevApiBaseUrl(storedBaseUrl))
   ) {
     localStorage.removeItem(API_BASE_URL_STORAGE_KEY);
     return "";
@@ -32,20 +35,13 @@ export function getStoredApiBaseUrl() {
 }
 
 export function getConfiguredApiBaseUrl() {
-  const configuredBaseUrl = normalizeApiBaseUrl(
-    getStoredApiBaseUrl() || ENV_API_BASE_URL || ""
+  return normalizeApiBaseUrl(
+    getStoredApiBaseUrl() || ENV_API_BASE_URL || DEFAULT_PRODUCTION_API_BASE_URL
   );
-
-  if (configuredBaseUrl) return configuredBaseUrl;
-  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-    return ANDROID_DEV_API_BASE_URL;
-  }
-
-  return "";
 }
 
-export function getAndroidDevApiBaseUrl() {
-  return ANDROID_DEV_API_BASE_URL;
+export function getDefaultApiBaseUrl() {
+  return ENV_API_BASE_URL || DEFAULT_PRODUCTION_API_BASE_URL;
 }
 
 export function getApiUrl(path) {
@@ -56,15 +52,11 @@ export function getApiUrl(path) {
   if (!Capacitor.isNativePlatform()) return normalizedPath;
 
   throw new Error(
-    "Android app не має доступу до локального /api у packaged build. " +
-      `Запусти backend у мережі й задай API Base URL у налаштуваннях, наприклад ${ANDROID_DEV_API_BASE_URL}.`
+    "Android app needs a reachable API backend. Set API Base URL in GlowUp settings."
   );
 }
 
 export function getAndroidApiHint() {
   if (!Capacitor.isNativePlatform()) return "";
-  return (
-    "У Capacitor Android відносний /api не вказує на Vite server. " +
-    `Задай API Base URL у налаштуваннях GlowUp або VITE_API_BASE_URL перед build. Поточний fallback: ${ANDROID_DEV_API_BASE_URL}.`
-  );
+  return `Current API backend: ${getConfiguredApiBaseUrl() || DEFAULT_PRODUCTION_API_BASE_URL}.`;
 }
