@@ -3,7 +3,7 @@
   "appName": "GlowUp",
   "webDir": "dist",
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "plugins": {
     "CapacitorHttp": {
