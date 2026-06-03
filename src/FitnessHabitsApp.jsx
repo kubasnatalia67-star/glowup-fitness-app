@@ -105,6 +105,7 @@ import {
   requestPinGlowUpWidget,
   updateGlowUpWidget,
 } from "./services/widgetService.js";
+import exerciseSpriteSheet from "./assets/exercises/exercise-sprite-sheet.png";
 
 const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.Ean8,
@@ -500,6 +501,39 @@ const EXERCISE_SVG_DEMOS = {
   spark: { label: "комбо", frames: ["stand", "jackOpen", "squat"], arrow: "switch" },
 };
 
+const EXERCISE_IMAGE_DEMOS = {
+  squat: { label: "присідання", cell: 0 },
+  plank: { label: "планка", cell: 1 },
+  pushup: { label: "віджимання", cell: 2 },
+  lunge: { label: "випади", cell: 3 },
+  bridge: { label: "місток", cell: 4 },
+  mountainClimber: { label: "climber", cell: 5 },
+  deadBug: { label: "кор", cell: 6 },
+  birdDog: { label: "bird dog", cell: 7 },
+  jumpingJack: { label: "кардіо", cell: 8 },
+  catCow: { label: "йога", cell: 9 },
+  childPose: { label: "йога", cell: 9 },
+  stretch: { label: "стретч", cell: 10 },
+  row: { label: "тяга", cell: 11 },
+  hinge: { label: "тяга", cell: 11 },
+  wallAngel: { label: "постава", cell: 12 },
+  armRaise: { label: "руки", cell: 12 },
+  snowAngel: { label: "спина", cell: 12 },
+  calfRaise: { label: "ікри", cell: 13 },
+  breath: { label: "дихання", cell: 14 },
+  dip: { label: "трицепс", cell: 15 },
+  sideLeg: { label: "нога", cell: 3 },
+  superman: { label: "superman", cell: 7 },
+  spark: { label: "комбо", cell: 15 },
+};
+
+const getExerciseImagePosition = (cell = 15) => {
+  const col = cell % 4;
+  const row = Math.floor(cell / 4);
+
+  return `${col * 33.3333}% ${row * 33.3333}%`;
+};
+
 const EXERCISE_POSES = {
   stand: { head: [50, 19], torso: "M50 28 L50 52", arms: "M50 34 L38 45 M50 34 L62 45", legs: "M50 52 L40 78 M50 52 L60 78" },
   squat: { head: [50, 25], torso: "M50 34 L45 54", arms: "M48 39 L30 46 M49 39 L67 45", legs: "M45 54 L31 66 L24 82 M45 54 L61 65 L70 82" },
@@ -555,8 +589,7 @@ function ExercisePose({ pose, begin = "0s" }) {
 
 function ExerciseIllustration({ type, checked }) {
   const meta = getExerciseDemoMeta(type);
-  const visual = EXERCISE_SVG_DEMOS[type] || EXERCISE_SVG_DEMOS.spark;
-  const frames = visual.frames || EXERCISE_SVG_DEMOS.spark.frames;
+  const visual = EXERCISE_IMAGE_DEMOS[type] || EXERCISE_IMAGE_DEMOS.spark;
 
   return (
     <span
@@ -576,32 +609,15 @@ function ExerciseIllustration({ type, checked }) {
         <span className="h-2 w-2 rounded-full bg-cyan-300" />
         <span className="h-2 w-2 rounded-full bg-pink-300" />
       </span>
-      <svg viewBox="0 0 100 100" className="relative z-10 h-[86px] w-[86px] overflow-visible">
-        <defs>
-          <filter id={`exercise-glow-${type}`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <g filter={`url(#exercise-glow-${type})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <ExercisePose pose={frames[0]} begin="0s" />
-          <ExercisePose pose={frames[1]} begin="0.8s" />
-          <ExercisePose pose={frames[2]} begin="1.6s" />
-        </g>
-        {visual.arrow !== "hold" && (
-          <g className="stroke-cyan-200/80" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M73 22 C82 31 82 43 74 52">
-              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" />
-            </path>
-            <path d="M74 52 L70 45 M74 52 L81 50">
-              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" />
-            </path>
-          </g>
-        )}
-      </svg>
+      <span
+        className="absolute inset-2 rounded-[18px] bg-cover bg-no-repeat shadow-[0_0_24px_rgba(236,72,153,0.34)]"
+        style={{
+          backgroundImage: `url(${exerciseSpriteSheet})`,
+          backgroundPosition: getExerciseImagePosition(visual.cell),
+          backgroundSize: "400% 400%",
+        }}
+      />
+      <span className="absolute inset-2 rounded-[18px] bg-gradient-to-t from-[#060818]/55 via-transparent to-transparent" />
       <span className="absolute bottom-2 left-2 right-2 truncate rounded-full bg-white/10 px-2 py-1 text-center text-[9px] font-black text-white/85">
         {visual.label || meta.label}
       </span>
