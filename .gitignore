@@ -5,4 +5,8 @@ node_modules/
 dist/
 *.log
 *.zip
+*.jks
+*.keystore
+android/keystore.properties
+android/release-signing-backup.txt
 android/.idea/
