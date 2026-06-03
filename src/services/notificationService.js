@@ -4,6 +4,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 const CHANNEL_ID = "glowup-reminders";
 const WATER_NOTIFICATION_IDS = Array.from({ length: 8 }, (_, index) => 4100 + index);
 const SLEEP_NOTIFICATION_ID = 4200;
+const WAKE_ALARM_NOTIFICATION_ID = 4210;
 const AI_COACH_NOTIFICATION_ID = 4300;
 
 export const isCapacitorAndroid = () =>
@@ -168,6 +169,50 @@ export async function scheduleNativeSleepReminder({ enabled, reminderTime, sleep
       },
     ],
   });
+}
+
+export async function scheduleNativeWakeAlarm({ enabled, wakeTime }) {
+  if (!hasNativeLocalNotifications()) return { scheduled: false };
+
+  await cancelNativeNotifications([WAKE_ALARM_NOTIFICATION_ID]);
+  if (!enabled || !wakeTime) return { scheduled: false };
+
+  const permission = await getAppNotificationPermission();
+  if (permission !== "granted") return { scheduled: false, permission };
+
+  const [hour, minute] = String(wakeTime)
+    .split(":")
+    .map((value) => Number(value));
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return { scheduled: false };
+  }
+
+  const scheduledAt = new Date();
+  scheduledAt.setHours(hour, minute, 0, 0);
+  if (scheduledAt.getTime() <= Date.now()) {
+    scheduledAt.setDate(scheduledAt.getDate() + 1);
+  }
+
+  await ensureNotificationChannel();
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: WAKE_ALARM_NOTIFICATION_ID,
+        title: "GlowUp будильник",
+        body: "Час прокидатися. Почни день м'яко: вода, кілька рухів і спокійний старт.",
+        channelId: CHANNEL_ID,
+        autoCancel: true,
+        schedule: {
+          at: scheduledAt,
+          allowWhileIdle: true,
+        },
+        extra: { type: "wake-alarm" },
+      },
+    ],
+  });
+
+  return { scheduled: true, scheduledAt: scheduledAt.toISOString() };
 }
 
 export async function scheduleNativeAiCoachReminder({ enabled }) {

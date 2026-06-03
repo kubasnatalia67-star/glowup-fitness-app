@@ -71,6 +71,7 @@ import {
   scheduleNativeAiCoachReminder,
   scheduleNativeSleepReminder,
   scheduleNativeWaterReminders,
+  scheduleNativeWakeAlarm,
   showAppNotification,
 } from "./services/notificationService.js";
 import {
@@ -822,6 +823,7 @@ export default function FitnessHabitsApp() {
   const [sleepDailyLog, setSleepDailyLog] = useState(() =>
     readJson("sleepDailyLog", {})
   );
+  const [sleepAlarmMessage, setSleepAlarmMessage] = useState("");
   const [sleepGoalHours, setSleepGoalHours] = useState(
     () => Number(localStorage.getItem("sleepGoalHours")) || 8
   );
@@ -1937,6 +1939,55 @@ export default function FitnessHabitsApp() {
   }, [settingsToggles.sleepReminder, bedtimeReminderTime, sleepGoal]);
 
   useEffect(() => {
+    if (!sleepWakeTime) {
+      setSleepAlarmMessage("");
+      if (isCapacitorAndroid()) {
+        scheduleNativeWakeAlarm({ enabled: false, wakeTime: "" }).catch(() => {});
+      }
+      return undefined;
+    }
+
+    if (isCapacitorAndroid()) {
+      scheduleNativeWakeAlarm({
+        enabled: true,
+        wakeTime: sleepWakeTime,
+      })
+        .then((result) => {
+          if (result?.scheduled) {
+            setSleepAlarmMessage(`Будильник з вібрацією встановлено на ${sleepWakeTime}.`);
+          } else if (result?.permission !== "granted") {
+            setSleepAlarmMessage("Дозволь Notifications в Android, щоб будильник спрацював.");
+          }
+        })
+        .catch((error) => {
+          console.warn("Wake alarm scheduling failed", error);
+          setSleepAlarmMessage("Не вдалося встановити будильник. Перевір дозвіл Notifications.");
+        });
+      return undefined;
+    }
+
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      setSleepAlarmMessage("Дозволь сповіщення, щоб будильник спрацював.");
+      return undefined;
+    }
+
+    const delay = getReminderDelay(sleepWakeTime);
+    if (delay === null) return undefined;
+
+    setSleepAlarmMessage(`Будильник встановлено на ${sleepWakeTime}.`);
+    const timeoutId = window.setTimeout(() => {
+      new Notification("GlowUp будильник", {
+        body: "Час прокидатися. Почни день м'яко: вода і кілька рухів.",
+      });
+      if (settingsToggles.vibration && navigator.vibrate) {
+        navigator.vibrate([250, 120, 250, 120, 250]);
+      }
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [sleepWakeTime, notificationPermission, settingsToggles.vibration]);
+
+  useEffect(() => {
     if (!isCapacitorAndroid()) return;
 
     scheduleNativeAiCoachReminder({
@@ -2412,6 +2463,21 @@ export default function FitnessHabitsApp() {
         updatedAt: new Date().toISOString(),
       },
     }));
+
+    if (field === "wakeTime" && value) {
+      getAppNotificationPermission()
+        .then((permission) => {
+          setNotificationPermission(permission);
+          if (permission === "default") {
+            requestNotificationPermission();
+          }
+        })
+        .catch(() => {});
+
+      if (settingsToggles.vibration && navigator.vibrate) {
+        navigator.vibrate(35);
+      }
+    }
   };
 
   const addManualFoodToDiary = () => {
@@ -6903,6 +6969,7 @@ export default function FitnessHabitsApp() {
               sleepProgress={sleepProgress}
               sleepQuality={sleepQuality}
               sleepAdvice={sleepAdvice}
+              sleepAlarmMessage={sleepAlarmMessage}
               onUpdateSleep={updateSleepEntry}
             />
 

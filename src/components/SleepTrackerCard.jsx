@@ -10,6 +10,7 @@ export default function SleepTrackerCard({
   sleepProgress,
   sleepQuality,
   sleepAdvice,
+  sleepAlarmMessage,
   onUpdateSleep,
 }) {
   return (
@@ -85,6 +86,12 @@ export default function SleepTrackerCard({
           {sleepAdvice}
         </p>
       </div>
+
+      {sleepAlarmMessage && (
+        <div className="mt-3 rounded-2xl border border-pink-300/20 bg-pink-500/10 p-4 text-sm font-semibold text-pink-100">
+          {sleepAlarmMessage}
+        </div>
+      )}
     </section>
   );
 }
