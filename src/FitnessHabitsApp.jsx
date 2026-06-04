@@ -502,29 +502,29 @@ const EXERCISE_SVG_DEMOS = {
 };
 
 const EXERCISE_IMAGE_DEMOS = {
-  squat: { label: "присідання", cell: 0 },
-  plank: { label: "планка", cell: 1 },
-  pushup: { label: "віджимання", cell: 2 },
-  lunge: { label: "випади", cell: 3 },
-  bridge: { label: "місток", cell: 4 },
-  mountainClimber: { label: "climber", cell: 5 },
-  deadBug: { label: "кор", cell: 6 },
-  birdDog: { label: "bird dog", cell: 7 },
-  jumpingJack: { label: "кардіо", cell: 8 },
-  catCow: { label: "йога", cell: 9 },
-  childPose: { label: "йога", cell: 9 },
-  stretch: { label: "стретч", cell: 10 },
-  row: { label: "тяга", cell: 11 },
-  hinge: { label: "тяга", cell: 11 },
-  wallAngel: { label: "постава", cell: 12 },
-  armRaise: { label: "руки", cell: 12 },
-  snowAngel: { label: "спина", cell: 12 },
-  calfRaise: { label: "ікри", cell: 13 },
-  breath: { label: "дихання", cell: 14 },
-  dip: { label: "трицепс", cell: 15 },
-  sideLeg: { label: "нога", cell: 3 },
-  superman: { label: "superman", cell: 7 },
-  spark: { label: "комбо", cell: 15 },
+  squat: { label: "присідання", cell: 0, motion: "squat" },
+  plank: { label: "планка", cell: 1, motion: "plank" },
+  pushup: { label: "віджимання", cell: 2, motion: "pushup" },
+  lunge: { label: "випади", cell: 3, motion: "lunge" },
+  bridge: { label: "місток", cell: 4, motion: "bridge" },
+  mountainClimber: { label: "climber", cell: 5, motion: "climber" },
+  deadBug: { label: "кор", cell: 6, motion: "core" },
+  birdDog: { label: "bird dog", cell: 7, motion: "balance" },
+  jumpingJack: { label: "кардіо", cell: 8, motion: "jump" },
+  catCow: { label: "йога", cell: 9, motion: "breath" },
+  childPose: { label: "йога", cell: 9, motion: "breath" },
+  stretch: { label: "стретч", cell: 10, motion: "stretch" },
+  row: { label: "тяга", cell: 11, motion: "row" },
+  hinge: { label: "тяга", cell: 11, motion: "hinge" },
+  wallAngel: { label: "постава", cell: 12, motion: "arms" },
+  armRaise: { label: "руки", cell: 12, motion: "arms" },
+  snowAngel: { label: "спина", cell: 12, motion: "arms" },
+  calfRaise: { label: "ікри", cell: 13, motion: "calf" },
+  breath: { label: "дихання", cell: 14, motion: "breath" },
+  dip: { label: "трицепс", cell: 15, motion: "jump" },
+  sideLeg: { label: "нога", cell: 3, motion: "lunge" },
+  superman: { label: "superman", cell: 7, motion: "balance" },
+  spark: { label: "комбо", cell: 15, motion: "jump" },
 };
 
 const getExerciseImagePosition = (cell = 15) => {
@@ -610,7 +610,7 @@ function ExerciseIllustration({ type, checked }) {
         <span className="h-2 w-2 rounded-full bg-pink-300" />
       </span>
       <span
-        className="absolute inset-2 rounded-[18px] bg-cover bg-no-repeat shadow-[0_0_24px_rgba(236,72,153,0.34)]"
+        className={`exercise-demo-person exercise-motion-${visual.motion || "breath"} absolute inset-2 rounded-[18px] bg-cover bg-no-repeat shadow-[0_0_24px_rgba(236,72,153,0.34)]`}
         style={{
           backgroundImage: `url(${exerciseSpriteSheet})`,
           backgroundPosition: getExerciseImagePosition(visual.cell),

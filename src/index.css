@@ -401,6 +401,68 @@ textarea {
     rgba(45, 15, 32, 0.96);
 }
 
+.exercise-demo-person {
+  transform-origin: 50% 58%;
+  will-change: transform, filter;
+}
+
+.exercise-motion-squat {
+  animation: exerciseSquat 1.55s ease-in-out infinite;
+}
+
+.exercise-motion-bridge {
+  animation: exerciseBridge 1.7s ease-in-out infinite;
+}
+
+.exercise-motion-lunge {
+  animation: exerciseLunge 1.65s ease-in-out infinite;
+}
+
+.exercise-motion-hinge,
+.exercise-motion-row {
+  animation: exerciseHinge 1.7s ease-in-out infinite;
+}
+
+.exercise-motion-pushup {
+  animation: exercisePushup 1.45s ease-in-out infinite;
+}
+
+.exercise-motion-plank {
+  animation: exercisePlank 2.2s ease-in-out infinite;
+}
+
+.exercise-motion-climber {
+  animation: exerciseClimber 0.95s ease-in-out infinite;
+}
+
+.exercise-motion-core {
+  animation: exerciseCore 1.5s ease-in-out infinite;
+}
+
+.exercise-motion-balance {
+  animation: exerciseBalance 1.8s ease-in-out infinite;
+}
+
+.exercise-motion-jump {
+  animation: exerciseJump 1.05s ease-in-out infinite;
+}
+
+.exercise-motion-stretch {
+  animation: exerciseStretch 1.9s ease-in-out infinite;
+}
+
+.exercise-motion-arms {
+  animation: exerciseArms 1.55s ease-in-out infinite;
+}
+
+.exercise-motion-calf {
+  animation: exerciseCalf 1.2s ease-in-out infinite;
+}
+
+.exercise-motion-breath {
+  animation: exerciseBreath 2.4s ease-in-out infinite;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -458,6 +520,76 @@ textarea {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
   }
+}
+
+@keyframes exerciseSquat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  48% { transform: translateY(9px) scale(0.97); }
+}
+
+@keyframes exerciseBridge {
+  0%, 100% { transform: translateY(7px) scaleY(0.98); }
+  50% { transform: translateY(-7px) scaleY(1.04); }
+}
+
+@keyframes exerciseLunge {
+  0%, 100% { transform: translateX(-3px) translateY(0) scale(1); }
+  50% { transform: translateX(7px) translateY(4px) scale(0.99); }
+}
+
+@keyframes exerciseHinge {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(5px) rotate(-4deg); }
+}
+
+@keyframes exercisePushup {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(8px) scaleY(0.97); }
+}
+
+@keyframes exercisePlank {
+  0%, 100% { transform: translateX(0) translateY(0); filter: brightness(1); }
+  50% { transform: translateX(3px) translateY(2px); filter: brightness(1.08); }
+}
+
+@keyframes exerciseClimber {
+  0%, 100% { transform: translateX(-7px) translateY(1px) scale(1.01); }
+  50% { transform: translateX(7px) translateY(-1px) scale(1.01); }
+}
+
+@keyframes exerciseCore {
+  0%, 100% { transform: rotate(-3deg) scale(1); }
+  50% { transform: rotate(3deg) scale(1.03); }
+}
+
+@keyframes exerciseBalance {
+  0%, 100% { transform: translateX(-4px) rotate(-2deg); }
+  50% { transform: translateX(4px) rotate(2deg); }
+}
+
+@keyframes exerciseJump {
+  0%, 100% { transform: translateY(6px) scale(0.96); }
+  45% { transform: translateY(-8px) scale(1.04); }
+}
+
+@keyframes exerciseStretch {
+  0%, 100% { transform: translateX(0) rotate(0deg) scale(1); }
+  50% { transform: translateX(-6px) rotate(-3deg) scale(1.02); }
+}
+
+@keyframes exerciseArms {
+  0%, 100% { transform: translateY(4px) scale(0.99); }
+  50% { transform: translateY(-6px) scale(1.03); }
+}
+
+@keyframes exerciseCalf {
+  0%, 100% { transform: translateY(5px) scaleY(0.99); }
+  50% { transform: translateY(-8px) scaleY(1.02); }
+}
+
+@keyframes exerciseBreath {
+  0%, 100% { transform: scale(0.96); filter: brightness(0.96); }
+  50% { transform: scale(1.05); filter: brightness(1.1); }
 }
 
 @media (max-width: 380px) {
