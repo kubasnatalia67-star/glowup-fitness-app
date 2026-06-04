@@ -6704,20 +6704,6 @@ export default function FitnessHabitsApp() {
                         {t("trainingText")}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => changeWorkoutDifficulty()}
-                      className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-5 py-3 text-sm font-black text-white shadow-lg shadow-pink-500/20"
-                    >
-                      Змінити рівень
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => changeWorkoutGoal()}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
-                    >
-                      Змінити ціль
-                    </button>
                   </div>
                 </div>
 
