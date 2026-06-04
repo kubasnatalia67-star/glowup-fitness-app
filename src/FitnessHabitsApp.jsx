@@ -7245,6 +7245,7 @@ export default function FitnessHabitsApp() {
               sleepQuality={sleepQuality}
               sleepAdvice={sleepAdvice}
               sleepAlarmMessage={sleepAlarmMessage}
+              sleepDailyLog={sleepDailyLog}
               onUpdateSleep={updateSleepEntry}
             />
 

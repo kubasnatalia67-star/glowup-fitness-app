@@ -1,5 +1,36 @@
 import ProgressBar from "./ProgressBar.jsx";
 
+const timeToMinutes = (time) => {
+  if (!time) return null;
+  const [hours, minutes] = String(time).split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const getSleepDuration = (bedTime, wakeTime) => {
+  const start = timeToMinutes(bedTime);
+  const end = timeToMinutes(wakeTime);
+  if (start === null || end === null) return 0;
+  const diff = end >= start ? end - start : 24 * 60 - start + end;
+  return Math.round((diff / 60) * 10) / 10;
+};
+
+const getDateKey = (date) => date.toISOString().slice(0, 10);
+
+const getLastSleepDates = (count = 7) => {
+  const today = new Date();
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (count - 1 - index));
+    return getDateKey(date);
+  });
+};
+
+const formatSleepDate = (dateKey) => {
+  const [, month, day] = dateKey.split("-");
+  return `${Number(day)}.${Number(month)}`;
+};
+
 export default function SleepTrackerCard({
   sleepHours,
   sleepGoal,
@@ -11,8 +42,29 @@ export default function SleepTrackerCard({
   sleepQuality,
   sleepAdvice,
   sleepAlarmMessage,
+  sleepDailyLog = {},
   onUpdateSleep,
 }) {
+  const sleepHistory = getLastSleepDates(7).map((dateKey) => {
+    const entry = sleepDailyLog[dateKey] || {};
+    const hours = getSleepDuration(entry.bedTime, entry.wakeTime);
+    return {
+      dateKey,
+      hours,
+      reachedGoal: hours >= sleepGoal,
+    };
+  });
+  const loggedNights = sleepHistory.filter((item) => item.hours > 0);
+  const averageSleep = loggedNights.length
+    ? Math.round((loggedNights.reduce((sum, item) => sum + item.hours, 0) / loggedNights.length) * 10) / 10
+    : 0;
+  const goalNights = sleepHistory.filter((item) => item.reachedGoal).length;
+  const bestNight = loggedNights.reduce(
+    (best, item) => (item.hours > best.hours ? item : best),
+    { hours: 0, dateKey: "" }
+  );
+  const maxChartHours = Math.max(sleepGoal, bestNight.hours, 8);
+
   return (
     <section className="glow-card p-5">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -92,6 +144,53 @@ export default function SleepTrackerCard({
           {sleepAlarmMessage}
         </div>
       )}
+
+      <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">
+              Звіт сну за 7 днів
+            </p>
+            <h4 className="mt-2 text-xl font-black">
+              {averageSleep ? `${averageSleep} год в середньому` : "Ще немає історії"}
+            </h4>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-center text-xs sm:w-56">
+            <div className="rounded-2xl bg-white/10 px-3 py-2">
+              <span className="block text-lg font-black">{goalNights}/7</span>
+              <span className="text-white/50">ночей ціль</span>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-3 py-2">
+              <span className="block text-lg font-black">{bestNight.hours || 0}</span>
+              <span className="text-white/50">найкраща год</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-7 items-end gap-2">
+          {sleepHistory.map((item) => {
+            const height = item.hours ? Math.max(18, Math.round((item.hours / maxChartHours) * 86)) : 12;
+            return (
+              <div key={item.dateKey} className="text-center">
+                <div className="flex h-24 items-end justify-center rounded-2xl bg-black/15 px-1 pb-1">
+                  <div
+                    className={`w-full rounded-xl ${
+                      item.reachedGoal
+                        ? "bg-gradient-to-t from-indigo-300 to-pink-300"
+                        : item.hours
+                          ? "bg-gradient-to-t from-white/25 to-purple-300/60"
+                          : "bg-white/10"
+                    }`}
+                    style={{ height: `${height}px` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] font-bold text-white/45">{formatSleepDate(item.dateKey)}</p>
+                <p className="text-[10px] text-white/60">{item.hours ? `${item.hours}г` : "—"}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 }
