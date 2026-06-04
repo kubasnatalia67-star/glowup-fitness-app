@@ -979,6 +979,7 @@ export default function FitnessHabitsApp() {
     () => localStorage.getItem("workoutGoal") || "tone"
   );
   const [workoutStreakAnimation, setWorkoutStreakAnimation] = useState(false);
+  const [workoutPlanNotice, setWorkoutPlanNotice] = useState("");
   const [selectedFoodVideoIndex, setSelectedFoodVideoIndex] = useState(0);
   const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
   const [openedWorkout, setOpenedWorkout] = useState(null);
@@ -1432,6 +1433,17 @@ export default function FitnessHabitsApp() {
   const todayWorkoutProgress = getSplitProgress(todayWorkout);
   const selectedSplitState = getSplitState(selectedSplitWorkout.id);
   const selectedSplitProgress = getSplitProgress(selectedSplitWorkout);
+  const activeWorkoutIndex =
+    activeWorkout?.id === selectedSplitWorkout.id
+      ? Math.min(
+          activeWorkout.currentExercise || 0,
+          Math.max(selectedSplitWorkout.exercises.length - 1, 0)
+        )
+      : 0;
+  const activeWorkoutExercise = selectedSplitWorkout.exercises[activeWorkoutIndex];
+  const activeWorkoutIllustrationType = activeWorkoutExercise
+    ? getExerciseIllustrationType(activeWorkoutExercise, selectedSplitWorkout, activeWorkoutIndex)
+    : "spark";
   const workoutStreak = getWorkoutStreakCount(weeklyWorkoutLog);
   const todayDateKey = getLocalDateKey();
   const weeklyCalendarProgress = WEEKLY_WORKOUT_SPLIT.map((workout, index) => {
@@ -3605,6 +3617,7 @@ export default function FitnessHabitsApp() {
     };
     setActiveWorkout(nextActiveWorkout);
     localStorage.setItem("activeWorkout", JSON.stringify(nextActiveWorkout));
+    setWorkoutPlanNotice(`Тренування "${workout.title}" запущено. Натискай вправи по черзі після виконання.`);
     setCharlieMessages((messages) => [
       ...messages,
       {
@@ -3627,6 +3640,11 @@ export default function FitnessHabitsApp() {
     setWorkoutDifficulty(nextLevel);
     localStorage.setItem("workoutDifficulty", nextLevel);
     changeTimerMinutes(nextWorkout.duration);
+    setActiveWorkout(null);
+    localStorage.removeItem("activeWorkout");
+    setWorkoutPlanNotice(
+      `Рівень змінено на "${WORKOUT_DIFFICULTY_LEVELS[nextLevel]?.label || nextLevel}". Програма і таймер оновлені.`
+    );
   };
 
   const changeWorkoutGoal = (goal) => {
@@ -3642,6 +3660,11 @@ export default function FitnessHabitsApp() {
     setWorkoutGoal(nextGoal);
     localStorage.setItem("workoutGoal", nextGoal);
     changeTimerMinutes(nextWorkout.duration);
+    setActiveWorkout(null);
+    localStorage.removeItem("activeWorkout");
+    setWorkoutPlanNotice(
+      `Ціль змінено на "${WORKOUT_GOAL_CONFIGS[nextGoal]?.label || nextGoal}". Вправи й акценти програми оновлені.`
+    );
   };
 
   const completeWeeklyWorkout = (workout) => {
@@ -6784,6 +6807,20 @@ export default function FitnessHabitsApp() {
                       </span>
                     </div>
 
+                    {workoutPlanNotice && (
+                      <div className="mb-5 flex items-start justify-between gap-3 rounded-3xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-50">
+                        <p className="leading-relaxed">{workoutPlanNotice}</p>
+                        <button
+                          type="button"
+                          onClick={() => setWorkoutPlanNotice("")}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-white/70"
+                          aria-label="Закрити повідомлення"
+                        >
+                          x
+                        </button>
+                      </div>
+                    )}
+
                     <div className="mb-5 rounded-3xl border border-white/10 bg-white/[0.04] p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
@@ -6871,6 +6908,20 @@ export default function FitnessHabitsApp() {
 
                     {activeWorkout?.id === selectedSplitWorkout.id && (
                       <div className="mb-5 rounded-3xl border border-pink-300/30 bg-pink-500/12 p-4">
+                        <div className="mb-4 flex items-center gap-4">
+                          <ExerciseIllustration type={activeWorkoutIllustrationType} checked={false} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-200">
+                              Тренування активне
+                            </p>
+                            <h4 className="mt-2 text-xl font-black">
+                              {activeWorkoutExercise?.name || selectedSplitWorkout.exercises[0]?.name}
+                            </h4>
+                            <p className="mt-1 text-xs font-bold text-orange-200">
+                              Крок {activeWorkoutIndex + 1} з {selectedSplitWorkout.exercises.length}
+                            </p>
+                          </div>
+                        </div>
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-200">
                           Тренування активне
                         </p>
@@ -7703,7 +7754,9 @@ export default function FitnessHabitsApp() {
                   <button
                     type="button"
                     onClick={() => {
+                      setSelectedSplitIndex(todayWorkoutIndex);
                       setDashboardTab("training");
+                      setWorkoutPlanNotice("Обрала тренування на сьогодні. Можеш одразу натиснути «Почати тренування».");
                       setShowQuickActions(false);
                     }}
                     className="tap-anim rounded-2xl bg-white/10 p-3 text-left font-semibold hover:bg-white/15"
