@@ -114,6 +114,29 @@ const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.UpcE,
 ];
 
+const DEFAULT_CYCLE_TRACKER = {
+  lastPeriodStart: "",
+  periodLength: 5,
+  cycleLength: 28,
+  note: "",
+};
+
+const dateKeyToDate = (dateKey) => new Date(`${dateKey}T00:00:00`);
+
+const getDateKeyDiffDays = (fromDateKey, toDateKey) => {
+  const fromDate = dateKeyToDate(fromDateKey);
+  const toDate = dateKeyToDate(toDateKey);
+
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 0;
+
+  return Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
+};
+
+const formatCycleDate = (dateKey) =>
+  dateKey
+    ? dateKeyToDate(dateKey).toLocaleDateString("uk-UA", { day: "2-digit", month: "short" })
+    : "-";
+
 const isDemoProfile = (profile = {}) => {
   const name = String(profile.name || "").trim();
   const normalizedName = name.toLowerCase();
@@ -1026,6 +1049,14 @@ export default function FitnessHabitsApp() {
     ])
   );
   const [newHabit, setNewHabit] = useState("");
+  const [cycleTracker, setCycleTracker] = useState(() => ({
+    ...DEFAULT_CYCLE_TRACKER,
+    ...readJson("cycleTracker", {}),
+  }));
+  const [cycleHistory, setCycleHistory] = useState(() =>
+    readJson("cycleHistory", [])
+  );
+  const [cycleMessage, setCycleMessage] = useState("");
 
   const [weightInput, setWeightInput] = useState("");
   const [currentWeight, setCurrentWeight] = useState(
@@ -1365,6 +1396,67 @@ export default function FitnessHabitsApp() {
   const stepsAverageDistanceKm = formatOneDecimal((stepsAverage7Days * stepStrideMeters) / 1000);
   const stepsGoalDays7Days = stepsLast7Days.filter((value) => value >= stepsGoal).length;
   const stepsChartMax = Math.max(stepsGoal, stepsBest7Days, 1);
+  const cycleInfo = useMemo(() => {
+    const lastPeriodStart = cycleTracker.lastPeriodStart;
+    const cycleLength = Math.max(21, Math.min(45, Number(cycleTracker.cycleLength) || 28));
+    const periodLength = Math.max(2, Math.min(10, Number(cycleTracker.periodLength) || 5));
+
+    if (!lastPeriodStart) {
+      return {
+        ready: false,
+        cycleLength,
+        periodLength,
+        day: 0,
+        phase: "Додай дату",
+        nextPeriodStart: "",
+        nextPeriodEnd: "",
+        ovulationDate: "",
+        fertileStart: "",
+        fertileEnd: "",
+        daysToNext: null,
+        progress: 0,
+      };
+    }
+
+    const todayKey = getLocalDateKey();
+    const daysSinceStart = Math.max(0, getDateKeyDiffDays(lastPeriodStart, todayKey));
+    const cycleIndex = Math.floor(daysSinceStart / cycleLength);
+    const currentCycleStart = addDaysToDateKey(lastPeriodStart, cycleIndex * cycleLength);
+    const nextPeriodStart = addDaysToDateKey(currentCycleStart, cycleLength);
+    const nextPeriodEnd = addDaysToDateKey(nextPeriodStart, periodLength - 1);
+    const ovulationDate = addDaysToDateKey(nextPeriodStart, -14);
+    const fertileStart = addDaysToDateKey(ovulationDate, -5);
+    const fertileEnd = addDaysToDateKey(ovulationDate, 1);
+    const day = (daysSinceStart % cycleLength) + 1;
+    const daysToNext = Math.max(0, getDateKeyDiffDays(todayKey, nextPeriodStart));
+    const isPeriod = day <= periodLength;
+    const isFertile = todayKey >= fertileStart && todayKey <= fertileEnd;
+    const isOvulation = todayKey === ovulationDate;
+    const phase = isPeriod
+      ? "Менструація"
+      : isOvulation
+        ? "Овуляція"
+        : isFertile
+          ? "Фертильне вікно"
+          : daysToNext <= 5
+            ? "Перед місячними"
+            : "Звичайний день";
+
+    return {
+      ready: true,
+      cycleLength,
+      periodLength,
+      day,
+      phase,
+      nextPeriodStart,
+      nextPeriodEnd,
+      ovulationDate,
+      fertileStart,
+      fertileEnd,
+      daysToNext,
+      progress: Math.min(100, Math.round((day / cycleLength) * 100)),
+    };
+  }, [cycleTracker]);
   const caloriesProgress = Math.min(
     Math.round((caloriesTodayTotal / dailyNutritionGoals.calories) * 100),
     100
@@ -1824,6 +1916,14 @@ export default function FitnessHabitsApp() {
   useEffect(() => {
     localStorage.setItem("userHabits", JSON.stringify(habits));
   }, [habits]);
+
+  useEffect(() => {
+    localStorage.setItem("cycleTracker", JSON.stringify(cycleTracker));
+  }, [cycleTracker]);
+
+  useEffect(() => {
+    localStorage.setItem("cycleHistory", JSON.stringify(cycleHistory));
+  }, [cycleHistory]);
 
   useEffect(() => {
     localStorage.setItem("userProfile", JSON.stringify(profile));
@@ -3732,6 +3832,34 @@ export default function FitnessHabitsApp() {
         habitIndex === index ? { ...habit, done: !habit.done } : habit
       )
     );
+  };
+
+  const saveCycleTrackerEntry = () => {
+    if (!cycleTracker.lastPeriodStart) {
+      setCycleMessage("Вибери дату початку останніх місячних.");
+      return;
+    }
+
+    const normalizedTracker = {
+      ...cycleTracker,
+      periodLength: Math.max(2, Math.min(10, Number(cycleTracker.periodLength) || 5)),
+      cycleLength: Math.max(21, Math.min(45, Number(cycleTracker.cycleLength) || 28)),
+      note: String(cycleTracker.note || "").slice(0, 160),
+    };
+
+    setCycleTracker(normalizedTracker);
+    setCycleHistory((items) => [
+      {
+        id: Date.now(),
+        date: getLocalDateKey(),
+        lastPeriodStart: normalizedTracker.lastPeriodStart,
+        periodLength: normalizedTracker.periodLength,
+        cycleLength: normalizedTracker.cycleLength,
+        note: normalizedTracker.note,
+      },
+      ...items.filter((item) => item.lastPeriodStart !== normalizedTracker.lastPeriodStart).slice(0, 11),
+    ]);
+    setCycleMessage("Цикл оновлено. Прогноз перерахований.");
   };
 
   const saveWeight = () => {
@@ -7489,6 +7617,130 @@ export default function FitnessHabitsApp() {
                     style={{ width: `${habitProgress}%` }}
                   />
                 </div>
+              </div>
+
+              <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
+                <div className="mb-5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-pink-200/70">Здоров'я</p>
+                    <h3 className="mt-1 text-xl font-bold text-white">Менструальний цикл</h3>
+                    <p className="mt-1 text-sm text-white/55">Календарний прогноз, фертильне вікно і нотатки.</p>
+                  </div>
+                  <span className="shrink-0 rounded-2xl bg-pink-500/15 px-3 py-2 text-sm font-black text-pink-100">
+                    {cycleInfo.ready ? `${cycleInfo.day} день` : "Новий"}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-xs font-bold text-white/55">Початок останніх місячних</span>
+                    <input
+                      type="date"
+                      value={cycleTracker.lastPeriodStart}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, lastPeriodStart: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-white outline-none"
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-xs font-bold text-white/55">Довжина циклу</span>
+                    <input
+                      type="number"
+                      min="21"
+                      max="45"
+                      value={cycleTracker.cycleLength}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, cycleLength: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-white outline-none"
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-xs font-bold text-white/55">Тривалість місячних</span>
+                    <input
+                      type="number"
+                      min="2"
+                      max="10"
+                      value={cycleTracker.periodLength}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, periodLength: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-white outline-none"
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="mb-1 block text-xs font-bold text-white/55">Нотатка</span>
+                    <input
+                      type="text"
+                      value={cycleTracker.note}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, note: event.target.value }))
+                      }
+                      placeholder="самопочуття, біль, настрій..."
+                      className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-white outline-none placeholder:text-white/35"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveCycleTrackerEntry}
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-5 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                >
+                  Зберегти цикл
+                </button>
+
+                {cycleMessage && (
+                  <p className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-white/70">{cycleMessage}</p>
+                )}
+
+                <div className="mt-4 rounded-3xl bg-white/5 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-white/45">Поточна фаза</p>
+                      <p className="text-2xl font-black text-white">{cycleInfo.phase}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/10 px-4 py-2 text-right">
+                      <p className="text-xs text-white/45">До наступних</p>
+                      <p className="font-black text-white">
+                        {cycleInfo.ready ? `${cycleInfo.daysToNext} дн.` : "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-pink-500 via-purple-400 to-cyan-300"
+                      style={{ width: `${cycleInfo.progress}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+                    {[
+                      ["Наступні", cycleInfo.ready ? `${formatCycleDate(cycleInfo.nextPeriodStart)} - ${formatCycleDate(cycleInfo.nextPeriodEnd)}` : "-"],
+                      ["Овуляція", formatCycleDate(cycleInfo.ovulationDate)],
+                      ["Фертильне вікно", cycleInfo.ready ? `${formatCycleDate(cycleInfo.fertileStart)} - ${formatCycleDate(cycleInfo.fertileEnd)}` : "-"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0 rounded-2xl bg-black/20 p-3">
+                        <p className="text-xs text-white/40">{label}</p>
+                        <p className="mt-1 break-words font-bold text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {cycleHistory.length > 0 && (
+                  <div className="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
+                    {cycleHistory.slice(0, 4).map((entry) => (
+                      <div key={entry.id} className="rounded-2xl bg-white/5 p-3 text-sm text-white/65">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold text-white">{formatCycleDate(entry.lastPeriodStart)}</span>
+                          <span>{entry.cycleLength} дн. цикл · {entry.periodLength} дн.</span>
+                        </div>
+                        {entry.note && <p className="mt-1 break-words text-white/50">{entry.note}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </section>
