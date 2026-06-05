@@ -31,11 +31,28 @@ const formatSleepDate = (dateKey) => {
   return `${Number(day)}.${Number(month)}`;
 };
 
+const sleepMoodOptions = [
+  ["", "Самопочуття"],
+  ["great", "Виспалась"],
+  ["ok", "Нормально"],
+  ["tired", "Втома"],
+  ["stress", "Стрес"],
+];
+
+const sleepMoodLabels = {
+  great: "Виспалась",
+  ok: "Нормально",
+  tired: "Втома",
+  stress: "Стрес",
+};
+
 export default function SleepTrackerCard({
   sleepHours,
   sleepGoal,
   sleepBedTime,
   sleepWakeTime,
+  sleepMood,
+  sleepNote,
   sleepGoalHours,
   setSleepGoalHours,
   sleepProgress,
@@ -55,6 +72,15 @@ export default function SleepTrackerCard({
     };
   });
   const loggedNights = sleepHistory.filter((item) => item.hours > 0);
+  const recentSleepEntries = Object.entries(sleepDailyLog)
+    .map(([dateKey, entry]) => ({
+      dateKey,
+      ...entry,
+      hours: getSleepDuration(entry?.bedTime, entry?.wakeTime),
+    }))
+    .filter((entry) => entry.hours > 0 || entry.note || entry.mood)
+    .sort((a, b) => b.dateKey.localeCompare(a.dateKey))
+    .slice(0, 5);
   const averageSleep = loggedNights.length
     ? Math.round((loggedNights.reduce((sum, item) => sum + item.hours, 0) / loggedNights.length) * 10) / 10
     : 0;
@@ -126,6 +152,34 @@ export default function SleepTrackerCard({
         </div>
       </div>
 
+      <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr]">
+        <label className="text-sm font-semibold text-white/60">
+          Самопочуття зранку
+          <select
+            value={sleepMood}
+            onChange={(event) => onUpdateSleep("mood", event.target.value)}
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-white outline-none focus:border-indigo-300"
+          >
+            {sleepMoodOptions.map(([value, label]) => (
+              <option key={value || "empty"} value={value} className="bg-[#171430] text-white">
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-semibold text-white/60">
+          Нотатка
+          <input
+            type="text"
+            value={sleepNote}
+            onChange={(event) => onUpdateSleep("note", event.target.value.slice(0, 140))}
+            placeholder="Що вплинуло на сон: кава, стрес, тренування..."
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-white outline-none placeholder:text-white/35 focus:border-indigo-300"
+          />
+        </label>
+      </div>
+
       <div className="mt-5">
         <ProgressBar percent={sleepProgress} accent="from-indigo-300 via-purple-400 to-pink-400" />
       </div>
@@ -190,6 +244,32 @@ export default function SleepTrackerCard({
             );
           })}
         </div>
+
+        {recentSleepEntries.length > 0 && (
+          <div className="mt-5 rounded-3xl bg-black/15 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h5 className="font-black text-white">Історія сну</h5>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/50">
+                {recentSleepEntries.length} записів
+              </span>
+            </div>
+            <div className="space-y-2">
+              {recentSleepEntries.map((entry) => (
+                <div key={entry.dateKey} className="rounded-2xl bg-white/5 p-3 text-sm text-white/70">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-white">{formatSleepDate(entry.dateKey)}</span>
+                    <span className="font-black text-indigo-100">{entry.hours ? `${entry.hours} год` : "без часу"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/45">
+                    {entry.bedTime || "--:--"} - {entry.wakeTime || "--:--"}
+                    {entry.mood ? ` · ${sleepMoodLabels[entry.mood] || entry.mood}` : ""}
+                  </p>
+                  {entry.note && <p className="mt-2 break-words text-white/60">{entry.note}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

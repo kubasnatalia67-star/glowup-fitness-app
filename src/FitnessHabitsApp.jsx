@@ -1142,6 +1142,8 @@ export default function FitnessHabitsApp() {
   const todaySleepEntry = sleepDailyLog[todaySleepKey] || {};
   const sleepBedTime = todaySleepEntry.bedTime || "";
   const sleepWakeTime = todaySleepEntry.wakeTime || "";
+  const sleepMood = todaySleepEntry.mood || "";
+  const sleepNote = todaySleepEntry.note || "";
   const sleepGoal = Number(sleepGoalHours) || 8;
   const sleepHours = getSleepHours(sleepBedTime, sleepWakeTime);
   const sleepProgress = Math.min(Math.round((sleepHours / sleepGoal) * 100), 100);
@@ -7716,6 +7718,8 @@ export default function FitnessHabitsApp() {
                 sleepGoal={sleepGoal}
                 sleepBedTime={sleepBedTime}
                 sleepWakeTime={sleepWakeTime}
+                sleepMood={sleepMood}
+                sleepNote={sleepNote}
                 sleepGoalHours={sleepGoalHours}
                 setSleepGoalHours={setSleepGoalHours}
                 sleepProgress={sleepProgress}
