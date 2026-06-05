@@ -1599,6 +1599,10 @@ export default function FitnessHabitsApp() {
   const activeWorkoutIllustrationType = activeWorkoutExercise
     ? getExerciseIllustrationType(activeWorkoutExercise, selectedSplitWorkout, activeWorkoutIndex)
     : "spark";
+  const isSelectedWorkoutActive = activeWorkout?.id === selectedSplitWorkout.id;
+  const activeWorkoutStepProgress = selectedSplitWorkout.exercises.length
+    ? Math.round(((activeWorkoutIndex + 1) / selectedSplitWorkout.exercises.length) * 100)
+    : 0;
   const workoutStreak = getWorkoutStreakCount(weeklyWorkoutLog);
   const todayDateKey = getLocalDateKey();
   const weeklyCalendarProgress = WEEKLY_WORKOUT_SPLIT.map((workout, index) => {
@@ -3852,6 +3856,63 @@ export default function FitnessHabitsApp() {
     ]);
     if (settingsToggles.vibration && navigator.vibrate) {
       navigator.vibrate([40, 25, 40]);
+    }
+  };
+
+  const pauseActiveWorkout = () => {
+    setIsTimerRunning(false);
+    setWorkoutPlanNotice("Тренування на паузі. Можна продовжити з цієї ж вправи.");
+  };
+
+  const resumeActiveWorkout = () => {
+    if (!activeWorkout) return;
+    if (secondsLeft <= 0) {
+      changeTimerMinutes(selectedSplitWorkout.duration);
+    }
+    setIsTimerRunning(true);
+    setWorkoutPlanNotice("Тренування продовжено. Рухаємося далі по плану.");
+  };
+
+  const goToNextActiveExercise = (workout) => {
+    if (!activeWorkout || activeWorkout.id !== workout.id) {
+      startWeeklyWorkout(workout, selectedSplitIndex);
+      return;
+    }
+
+    const currentIndex = Math.min(
+      activeWorkout.currentExercise || 0,
+      Math.max(workout.exercises.length - 1, 0)
+    );
+    const completedIndex = currentIndex;
+
+    updateWeeklyWorkoutState(workout, (state) => {
+      const currentExercises = state.completedExercises || [];
+      const completedExercises = Array.from(new Set([...currentExercises, completedIndex]));
+
+      return {
+        ...state,
+        completedExercises,
+        completed: completedExercises.length === workout.exercises.length,
+      };
+    });
+
+    if (currentIndex >= workout.exercises.length - 1) {
+      completeWeeklyWorkout(workout);
+      return;
+    }
+
+    const nextActiveWorkout = {
+      ...activeWorkout,
+      currentExercise: currentIndex + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setActiveWorkout(nextActiveWorkout);
+    localStorage.setItem("activeWorkout", JSON.stringify(nextActiveWorkout));
+    setIsTimerRunning(true);
+
+    if (settingsToggles.vibration && navigator.vibrate) {
+      navigator.vibrate(35);
     }
   };
 
@@ -7285,42 +7346,61 @@ export default function FitnessHabitsApp() {
                       />
                     </div>
 
-                    {activeWorkout?.id === selectedSplitWorkout.id && (
-                      <div className="mb-5 rounded-3xl border border-pink-300/30 bg-pink-500/12 p-4">
-                        <div className="mb-4 flex items-center gap-4">
+                    {isSelectedWorkoutActive && (
+                      <div className="mb-5 overflow-hidden rounded-3xl border border-pink-300/30 bg-pink-500/12 p-4">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                           <ExerciseIllustration type={activeWorkoutIllustrationType} checked={false} />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-200">
-                              Тренування активне
+                              Активне тренування
                             </p>
                             <h4 className="mt-2 text-xl font-black">
                               {activeWorkoutExercise?.name || selectedSplitWorkout.exercises[0]?.name}
                             </h4>
-                            <p className="mt-1 text-xs font-bold text-orange-200">
-                              Крок {activeWorkoutIndex + 1} з {selectedSplitWorkout.exercises.length}
+                            <p className="mt-1 text-sm text-white/60">
+                              Крок {activeWorkoutIndex + 1} з {selectedSplitWorkout.exercises.length} · {activeWorkoutExercise?.sets} · {activeWorkoutExercise?.timer}
                             </p>
                           </div>
+                          <div className="rounded-3xl bg-black/20 px-5 py-4 text-center">
+                            <p className="text-xs text-white/45">{isTimerRunning ? "Таймер працює" : "Пауза"}</p>
+                            <p className="text-4xl font-black text-white">{timerLabel}</p>
+                          </div>
                         </div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-pink-200">
-                          Тренування активне
+
+                        <p className="mt-4 text-sm leading-relaxed text-white/70">
+                          {getExerciseDemoMeta(activeWorkoutIllustrationType).cue}
                         </p>
-                        <h4 className="mt-2 text-xl font-black">
-                          {selectedSplitWorkout.exercises[activeWorkout.currentExercise]?.name ||
-                            selectedSplitWorkout.exercises[0]?.name}
-                        </h4>
-                        <p className="mt-2 text-sm leading-relaxed text-white/65">
-                          {getExerciseDemoMeta(
-                            getExerciseIllustrationType(
-                              selectedSplitWorkout.exercises[activeWorkout.currentExercise] ||
-                                selectedSplitWorkout.exercises[0],
-                              selectedSplitWorkout,
-                              activeWorkout.currentExercise || 0
-                            )
-                          ).cue}
-                        </p>
-                        <p className="mt-2 text-xs leading-relaxed text-white/45">
-                          Натискай вправи по черзі після виконання. Таймер уже запущений, а прогрес оновлюється автоматично.
-                        </p>
+
+                        <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${selectedSplitWorkout.accent} transition-all duration-500`}
+                            style={{ width: `${activeWorkoutStepProgress}%` }}
+                          />
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <button
+                            type="button"
+                            onClick={isTimerRunning ? pauseActiveWorkout : resumeActiveWorkout}
+                            className="rounded-2xl bg-white/10 px-4 py-3 font-black text-white transition hover:bg-white/15"
+                          >
+                            {isTimerRunning ? "Пауза" : "Продовжити"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => goToNextActiveExercise(selectedSplitWorkout)}
+                            className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                          >
+                            {activeWorkoutIndex >= selectedSplitWorkout.exercises.length - 1 ? "Фініш" : "Наступна вправа"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => completeWeeklyWorkout(selectedSplitWorkout)}
+                            className="rounded-2xl bg-emerald-500/20 px-4 py-3 font-black text-emerald-100 transition hover:bg-emerald-500/30"
+                          >
+                            Завершити
+                          </button>
+                        </div>
                       </div>
                     )}
 
