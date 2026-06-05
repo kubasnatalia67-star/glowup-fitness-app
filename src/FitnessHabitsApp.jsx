@@ -237,6 +237,16 @@ const getExerciseDurationSeconds = (exercise, fallbackSeconds = 45) => {
   return parsed || fallbackSeconds;
 };
 
+const getVideoWorkoutMinutes = (workout, fallbackMinutes = 25) => {
+  const [minutes, seconds] = String(workout?.time || "")
+    .split(":")
+    .map((value) => Number(value));
+
+  if (!Number.isFinite(minutes)) return fallbackMinutes;
+
+  return Math.max(1, minutes + (Number(seconds) > 0 ? 1 : 0));
+};
+
 const EXERCISE_DEMO_VISUALS = {
   squat: { icon: "🏋️‍♀️", label: "присід", motion: "↕" },
   bridge: { icon: "🧘‍♀️", label: "місток", motion: "↥" },
@@ -4340,9 +4350,12 @@ export default function FitnessHabitsApp() {
   };
 
   const startNewWorkoutTimer = () => {
-    const minutes = selectedWorkout?.duration || selectedSplitWorkout?.duration || 25;
-    changeTimerMinutes(minutes);
+    const minutes = getVideoWorkoutMinutes(selectedWorkout, selectedSplitWorkout?.duration || 25);
+    setSelectedMinutes(minutes);
+    setSecondsLeft(minutes * 60);
+    setIsTimerRunning(true);
     setDashboardTab("training");
+    setWorkoutPlanNotice(`Вільний таймер запущено для "${selectedWorkout.title}" на ${minutes} хв.`);
   };
 
   const openNutritionDetails = () => {
@@ -7785,6 +7798,22 @@ export default function FitnessHabitsApp() {
                     </button>
                     <h4 className="mt-4 text-2xl font-bold">{selectedWorkout.title}</h4>
                     <p className="mt-2 text-white/60">{selectedWorkout.meta}</p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenedWorkout(selectedWorkout)}
+                        className="rounded-2xl bg-white/10 px-4 py-3 font-black text-white transition hover:bg-white/15"
+                      >
+                        Дивитись відео
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startNewWorkoutTimer}
+                        className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                      >
+                        Запустити таймер
+                      </button>
+                    </div>
                     <div className="mt-5 grid gap-3 md:grid-cols-3">
                       {WORKOUT_CARDS.map((item, index) => (
                         <button
@@ -7803,7 +7832,12 @@ export default function FitnessHabitsApp() {
                   </div>
 
                   <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
-                    <h3 className="mb-5 text-xl font-bold">{t("workoutTimer")}</h3>
+                    <div className="mb-5">
+                      <h3 className="text-xl font-bold">Вільний таймер</h3>
+                      <p className="mt-1 text-sm text-white/50">
+                        Для відеотренування: {selectedWorkout.title}
+                      </p>
+                    </div>
                     <div className="mx-auto grid h-56 w-56 place-items-center rounded-full bg-[conic-gradient(#5bb7ff_0_50%,#c94cf0_50%_100%)] p-[3px]">
                       <div className="grid h-full w-full place-items-center rounded-full bg-[#171430] text-center">
                         <div>
@@ -7815,7 +7849,7 @@ export default function FitnessHabitsApp() {
                     </div>
                     <div className="mt-6 grid grid-cols-3 gap-3">
                       <button onClick={() => changeTimerMinutes(Math.max(selectedMinutes - 5, 5))} className="rounded-2xl bg-white/10 p-4 text-2xl">−</button>
-                      <button onClick={() => setIsTimerRunning(true)} className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold">{t("start")}</button>
+                      <button onClick={startNewWorkoutTimer} className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold">Старт відео</button>
                       <button onClick={() => changeTimerMinutes(selectedMinutes + 5)} className="rounded-2xl bg-white/10 p-4 text-2xl">+</button>
                     </div>
                     <button onClick={resetTimer} className="mt-3 w-full rounded-2xl bg-white/10 p-4 font-bold">
@@ -8375,13 +8409,16 @@ export default function FitnessHabitsApp() {
 
               <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
                 <div className="mb-5 flex items-center justify-between">
-                  <h3 className="text-xl font-bold">Таймер тренування</h3>
+                  <div>
+                    <h3 className="text-xl font-bold">Вільний таймер</h3>
+                    <p className="mt-1 text-xs text-white/45">{selectedWorkout.title}</p>
+                  </div>
                   <button
                     type="button"
                     onClick={startNewWorkoutTimer}
                     className="text-purple-300"
                   >
-                    Новий таймер +
+                    Старт відео +
                   </button>
                 </div>
                 <div className="mb-5 grid grid-cols-5 gap-2 rounded-2xl bg-white/5 p-2 text-center text-sm">
@@ -8403,7 +8440,7 @@ export default function FitnessHabitsApp() {
                       <div>
                         <p className="text-sm text-white/60">Час тренування</p>
                         <p className="text-5xl font-black">{timerLabel}</p>
-                        <p className="mt-2 text-sm text-white/50">Готово</p>
+                        <p className="mt-2 text-sm text-white/50">{isTimerRunning ? "Працює" : "Готово"}</p>
                       </div>
                     </div>
                   </div>
@@ -8416,10 +8453,10 @@ export default function FitnessHabitsApp() {
                 </div>
                 <div className="mt-6 grid grid-cols-[1fr_80px] gap-4">
                   <button
-                    onClick={() => setIsTimerRunning(true)}
+                    onClick={startNewWorkoutTimer}
                     className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 py-4 text-lg font-bold"
                   >
-                    ▶ Старт
+                    ▶ Старт відео
                   </button>
                   <button onClick={resetTimer} className="rounded-2xl bg-white/10 text-3xl">
                     ↻
