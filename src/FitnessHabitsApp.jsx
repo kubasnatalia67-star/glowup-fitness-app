@@ -1114,6 +1114,9 @@ export default function FitnessHabitsApp() {
   const [activeWorkout, setActiveWorkout] = useState(() =>
     readJson("activeWorkout", null)
   );
+  const [workoutHistory, setWorkoutHistory] = useState(() =>
+    readJson("workoutHistory", [])
+  );
 
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiAnswer, setAiAnswer] = useState(
@@ -1597,6 +1600,10 @@ export default function FitnessHabitsApp() {
   const todayWorkoutProgress = getSplitProgress(todayWorkout);
   const selectedSplitState = getSplitState(selectedSplitWorkout.id);
   const selectedSplitProgress = getSplitProgress(selectedSplitWorkout);
+  const recentWorkoutHistory = workoutHistory
+    .slice()
+    .sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")))
+    .slice(0, 5);
   const activeWorkoutIndex =
     activeWorkout?.id === selectedSplitWorkout.id
       ? Math.min(
@@ -4115,6 +4122,26 @@ export default function FitnessHabitsApp() {
     localStorage.removeItem("activeWorkout");
 
     if (!wasCompleted) {
+      const historyEntry = {
+        id: `workout-${workoutWeekKey}-${workout.id}`,
+        workoutId: workout.id,
+        title: workout.title,
+        date: getLocalDateKey(),
+        completedAt: new Date().toISOString(),
+        duration: workout.duration,
+        exercises: workout.exercises.length,
+        difficulty: workout.difficulty?.label || workoutDifficultyConfig.label,
+        goal: workout.goal?.label || workoutGoalConfig.label,
+        source: "weekly-workout",
+      };
+      setWorkoutHistory((items) => {
+        const nextItems = [
+          historyEntry,
+          ...items.filter((item) => item.id !== historyEntry.id),
+        ].slice(0, 30);
+        localStorage.setItem("workoutHistory", JSON.stringify(nextItems));
+        return nextItems;
+      });
       awardXp(workoutXpKey, 50, "Тренування виконано");
     }
 
@@ -7689,6 +7716,50 @@ export default function FitnessHabitsApp() {
                           </button>
                         );
                       })}
+                    </div>
+
+                    <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-black">Історія тренувань</h4>
+                          <p className="mt-1 text-xs text-white/45">
+                            Останні завершені тренування зберігаються тут.
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/50">
+                          {workoutHistory.length}
+                        </span>
+                      </div>
+
+                      {recentWorkoutHistory.length > 0 ? (
+                        <div className="space-y-2">
+                          {recentWorkoutHistory.map((entry) => (
+                            <div
+                              key={entry.id}
+                              className="rounded-2xl bg-black/15 p-3 text-sm text-white/70"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate font-black text-white">{entry.title}</p>
+                                  <p className="mt-1 text-xs text-white/45">
+                                    {entry.date} · {entry.duration} хв · {entry.exercises} вправ
+                                  </p>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-green-500/15 px-3 py-1 text-xs font-bold text-green-200">
+                                  виконано
+                                </span>
+                              </div>
+                              <p className="mt-2 text-xs text-white/45">
+                                {entry.difficulty} · {entry.goal}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="rounded-2xl bg-black/15 p-3 text-sm text-white/50">
+                          Після завершення першого тренування тут з'явиться запис.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
