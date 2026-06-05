@@ -7234,6 +7234,7 @@ export default function FitnessHabitsApp() {
               waterGoalMl={waterGoalMl}
               setWaterGoalMl={setWaterGoalMl}
               waterProgress={waterProgress}
+              waterDailyLog={waterDailyLog}
               onUpdateWater={updateWaterAmount}
             />
 
