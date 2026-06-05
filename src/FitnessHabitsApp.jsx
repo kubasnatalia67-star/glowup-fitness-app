@@ -8557,14 +8557,12 @@ export default function FitnessHabitsApp() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedSplitIndex(todayWorkoutIndex);
-                      setDashboardTab("training");
-                      setWorkoutPlanNotice("Обрала тренування на сьогодні. Можеш одразу натиснути «Почати тренування».");
+                      startWeeklyWorkout(todayWorkout, todayWorkoutIndex);
                       setShowQuickActions(false);
                     }}
                     className="tap-anim rounded-2xl bg-white/10 p-3 text-left font-semibold hover:bg-white/15"
                   >
-                    Додати тренування
+                    Почати тренування
                   </button>
                 </div>
               </div>
