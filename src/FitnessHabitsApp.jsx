@@ -1363,6 +1363,8 @@ export default function FitnessHabitsApp() {
   );
   const stepsBest7Days = Math.max(...stepsLast7Days, 0);
   const stepsAverageDistanceKm = formatOneDecimal((stepsAverage7Days * stepStrideMeters) / 1000);
+  const stepsGoalDays7Days = stepsLast7Days.filter((value) => value >= stepsGoal).length;
+  const stepsChartMax = Math.max(stepsGoal, stepsBest7Days, 1);
   const caloriesProgress = Math.min(
     Math.round((caloriesTodayTotal / dailyNutritionGoals.calories) * 100),
     100
@@ -5598,18 +5600,64 @@ export default function FitnessHabitsApp() {
                   ))}
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-sm text-white/70">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-sm text-white/70">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <p className="font-bold text-white">{"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u0440\u0443\u0445\u0443"}</p>
-                      <p className="mt-1 break-words">
-                        {"\u0421\u044c\u043e\u0433\u043e\u0434\u043d\u0456: "}{steps.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432, \u043f\u0440\u0438\u0431\u043b\u0438\u0437\u043d\u043e "}{stepsDistanceKm}{" \u043a\u043c. "}
-                        {"\u0421\u0435\u0440\u0435\u0434\u043d\u0454 \u0437\u0430 7 \u0434\u043d\u0456\u0432: "}{stepsAverage7Days.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432."}
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200/70">{"\u0417\u0432\u0456\u0442 \u0440\u0443\u0445\u0443"}</p>
+                      <h3 className="mt-1 text-2xl font-black text-white">{"\u041a\u0440\u043e\u043a\u0438 \u0437\u0430 7 \u0434\u043d\u0456\u0432"}</h3>
+                      <p className="mt-2 break-words text-white/60">
+                        {"\u0421\u044c\u043e\u0433\u043e\u0434\u043d\u0456 \u0442\u0438 \u043f\u0440\u043e\u0439\u0448\u043b\u0430 "}{steps.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432, \u043f\u0440\u0438\u0431\u043b\u0438\u0437\u043d\u043e "}{stepsDistanceKm}{" \u043a\u043c."}
                       </p>
                     </div>
-                    <span className="rounded-2xl bg-emerald-400/15 px-3 py-2 text-xs font-bold text-emerald-100">
+                    <span className="w-fit shrink-0 rounded-2xl bg-emerald-400/15 px-3 py-2 text-xs font-bold text-emerald-100">
                       {stepsSensorStatus?.available ? "Android step counter" : "Manual / fallback"}
                     </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="min-w-0 rounded-2xl bg-white/5 p-3">
+                      <p className="text-xs text-white/45">{"\u0421\u0435\u0440\u0435\u0434\u043d\u0454 / \u0434\u0435\u043d\u044c"}</p>
+                      <p className="mt-1 text-xl font-black text-white">{stepsAverage7Days.toLocaleString("uk-UA")}</p>
+                      <p className="text-xs text-white/45">{stepsAverageDistanceKm}{" \u043a\u043c"}</p>
+                    </div>
+                    <div className="min-w-0 rounded-2xl bg-white/5 p-3">
+                      <p className="text-xs text-white/45">{"\u0426\u0456\u043b\u044c \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u0430"}</p>
+                      <p className="mt-1 text-xl font-black text-white">{stepsGoalDays7Days}{"/7 \u0434\u043d\u0456\u0432"}</p>
+                      <p className="text-xs text-white/45">{stepsGoal.toLocaleString("uk-UA")}{" \u043a\u0440\u043e\u043a\u0456\u0432"}</p>
+                    </div>
+                    <div className="min-w-0 rounded-2xl bg-white/5 p-3">
+                      <p className="text-xs text-white/45">{"\u041d\u0430\u0439\u043a\u0440\u0430\u0449\u0438\u0439 \u0434\u0435\u043d\u044c"}</p>
+                      <p className="mt-1 text-xl font-black text-white">{stepsBest7Days.toLocaleString("uk-UA")}</p>
+                      <p className="text-xs text-white/45">{formatOneDecimal((stepsBest7Days * stepStrideMeters) / 1000)}{" \u043a\u043c"}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-3xl bg-[#111026] p-3">
+                    <div className="flex h-32 items-end gap-2 overflow-hidden">
+                      {stepsLast7Days.map((value, index) => {
+                        const progress = Math.min(100, Math.round((value / stepsChartMax) * 100));
+                        const isGoalDay = value >= stepsGoal;
+                        const isToday = index === stepsLast7Days.length - 1;
+
+                        return (
+                          <div key={`${progressChartSeries.labels[index]}-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                            <div className="flex h-24 w-full max-w-9 items-end rounded-full bg-white/10 p-1">
+                              <div
+                                className={`w-full rounded-full ${isGoalDay ? "bg-gradient-to-t from-emerald-400 to-cyan-300" : "bg-gradient-to-t from-pink-500 to-orange-400"}`}
+                                style={{ height: `${Math.max(progress, value > 0 ? 10 : 4)}%` }}
+                              />
+                            </div>
+                            <span className={`truncate text-[11px] font-bold ${isToday ? "text-white" : "text-white/45"}`}>
+                              {progressChartSeries.labels[index]}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-white/45">
+                      <span>{"\u041f\u043e\u043c\u0430\u0440\u0430\u043d\u0447\u0435\u0432\u0435 - \u0434\u0435\u043d\u044c \u0449\u0435 \u043d\u0435 \u0434\u043e\u0442\u044f\u0433\u043d\u0443\u0432 \u0434\u043e \u0446\u0456\u043b\u0456"}</span>
+                      <span>{"\u0411\u0456\u0440\u044e\u0437\u043e\u0432\u0435 - \u0446\u0456\u043b\u044c \u0432\u0438\u043a\u043e\u043d\u0430\u043d\u0430"}</span>
+                    </div>
                   </div>
 
                   <details className="mt-3 rounded-2xl bg-white/5 p-3">
