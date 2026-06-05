@@ -825,6 +825,11 @@ export default function FitnessHabitsApp() {
   const manualFoodFormRef = useRef(null);
   const charlieDragRef = useRef(null);
   const recognitionRef = useRef(null);
+  const homeTopRef = useRef(null);
+  const waterSectionRef = useRef(null);
+  const sleepSectionRef = useRef(null);
+  const habitsSectionRef = useRef(null);
+  const cycleSectionRef = useRef(null);
   const savedGlowUpDataRef = useRef(readJson(STORAGE_KEY, {}));
   const savedGlowUpData = savedGlowUpDataRef.current;
   const [cameraStream, setCameraStream] = useState(null);
@@ -1441,7 +1446,6 @@ export default function FitnessHabitsApp() {
 
     return missed.sort((a, b) => b.missedDays - a.missedDays)[0];
   })();
-
   const stepsProgress = Math.min(Math.round((steps / stepsGoal) * 100), 100);
   const stepStrideMeters = Math.max(0.5, Math.min(0.9, (Number(profile.height) || 165) * 0.00414));
   const stepsDistanceKm = formatOneDecimal(((Number(steps) || 0) * stepStrideMeters) / 1000);
@@ -1627,6 +1631,64 @@ export default function FitnessHabitsApp() {
   const sleepGoalDaysCount = Object.values(sleepDailyLog).filter(
     (entry) => getSleepHours(entry?.bedTime, entry?.wakeTime) >= sleepGoal
   ).length;
+  const featureShortcuts = [
+    {
+      target: "water",
+      icon: "H2O",
+      label: "Вода",
+      value: `${waterConsumedMl} мл`,
+      detail: `${waterProgress}% цілі`,
+      accent: "from-cyan-400 to-blue-500",
+    },
+    {
+      target: "sleep",
+      icon: "ZZ",
+      label: "Сон",
+      value: `${sleepHours} год`,
+      detail: `${sleepProgress}% цілі`,
+      accent: "from-indigo-400 to-purple-500",
+    },
+    {
+      target: "training",
+      icon: "FIT",
+      label: "Тренування",
+      value: selectedSplitWorkout?.title || selectedWorkout?.title || "План",
+      detail: `${selectedSplitProgress}% прогрес`,
+      accent: "from-orange-400 to-pink-500",
+    },
+    {
+      target: "nutrition",
+      icon: "KCAL",
+      label: "Їжа",
+      value: `${caloriesTodayTotal} ккал`,
+      detail: `${todayDiaryEntries.length} записів`,
+      accent: "from-emerald-400 to-cyan-400",
+    },
+    {
+      target: "progress",
+      icon: "CM",
+      label: "Заміри",
+      value: measurements.length ? `${measurements.length} записів` : "Додати",
+      detail: latestMeasurement ? latestMeasurement.date : "Талія, стегна, груди",
+      accent: "from-violet-400 to-fuchsia-500",
+    },
+    {
+      target: "cycle",
+      icon: "DAY",
+      label: "Цикл",
+      value: cycleInfo.ready ? `${cycleInfo.day} день` : "Додати",
+      detail: cycleInfo.phase,
+      accent: "from-pink-400 to-rose-500",
+    },
+    {
+      target: "habits",
+      icon: "OK",
+      label: "Звички",
+      value: `${completedHabits}/${habits.length}`,
+      detail: `${habitPerfectDays7Days}/7 ідеальних днів`,
+      accent: "from-purple-400 to-pink-500",
+    },
+  ];
   const progressAnalytics = useMemo(() => {
     const dates = getLastDateKeys(7);
     const dateSet = new Set(dates);
@@ -4055,6 +4117,47 @@ export default function FitnessHabitsApp() {
     setDashboardTab("nutrition");
   };
 
+  const scrollToSection = (sectionRef) => {
+    window.setTimeout(() => {
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
+  const openFeatureShortcut = (target) => {
+    if (target === "water") {
+      setDashboardTab("home");
+      scrollToSection(waterSectionRef);
+      return;
+    }
+
+    if (target === "sleep") {
+      setDashboardTab("home");
+      scrollToSection(sleepSectionRef);
+      return;
+    }
+
+    if (target === "habits") {
+      setDashboardTab("home");
+      scrollToSection(habitsSectionRef);
+      return;
+    }
+
+    if (target === "cycle") {
+      setDashboardTab("home");
+      scrollToSection(cycleSectionRef);
+      return;
+    }
+
+    if (target === "progress") {
+      setDashboardTab("progress");
+      scrollToSection(homeTopRef);
+      return;
+    }
+
+    setDashboardTab(target);
+    scrollToSection(homeTopRef);
+  };
+
   const openFoodVideoLibrary = () => {
     const nextIndex = (selectedFoodVideoIndex + 1) % FOOD_VIDEO_CARDS.length;
     setSelectedFoodVideoIndex(nextIndex);
@@ -5489,7 +5592,7 @@ export default function FitnessHabitsApp() {
             </p>
           </aside>
 
-          <main className="app-main-content min-w-0 space-y-5 overflow-x-hidden">
+          <main ref={homeTopRef} className="app-main-content min-w-0 space-y-5 overflow-x-hidden">
             <header className="glow-card p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -5569,6 +5672,36 @@ export default function FitnessHabitsApp() {
                 </div>
               </div>
             </section>
+            )}
+
+            {dashboardTab === "home" && (
+              <section className="glow-card overflow-hidden p-5 sm:p-6">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200/70">Центр функцій</p>
+                    <h3 className="mt-1 text-2xl font-black text-white">Швидкий доступ</h3>
+                    <p className="mt-2 text-sm text-white/55">Усі важливі трекери в одному місці, без довгого пошуку по сторінці.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  {featureShortcuts.map((item) => (
+                    <button
+                      key={item.target}
+                      type="button"
+                      onClick={() => openFeatureShortcut(item.target)}
+                      className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.055] p-3 text-left transition hover:-translate-y-0.5 hover:bg-white/10"
+                    >
+                      <span className={`grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br ${item.accent} text-xs font-black text-white shadow-lg`}>
+                        {item.icon}
+                      </span>
+                      <span className="mt-3 block truncate text-sm font-bold text-white">{item.label}</span>
+                      <span className="mt-1 block truncate text-lg font-black text-white">{item.value}</span>
+                      <span className="mt-1 block truncate text-xs text-white/45">{item.detail}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
             )}
 
             <div className="rounded-3xl bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shadow-lg">
@@ -7483,34 +7616,38 @@ export default function FitnessHabitsApp() {
               </div>
             </section>
 
-            <WaterTrackerCard
-              waterConsumedMl={waterConsumedMl}
-              waterGoal={waterGoal}
-              waterGlassesToday={waterGlassesToday}
-              waterRemainingMl={waterRemainingMl}
-              waterGoalMl={waterGoalMl}
-              setWaterGoalMl={setWaterGoalMl}
-              waterProgress={waterProgress}
-              waterDailyLog={waterDailyLog}
-              onUpdateWater={updateWaterAmount}
-            />
+            <div ref={waterSectionRef} className="scroll-mt-24">
+              <WaterTrackerCard
+                waterConsumedMl={waterConsumedMl}
+                waterGoal={waterGoal}
+                waterGlassesToday={waterGlassesToday}
+                waterRemainingMl={waterRemainingMl}
+                waterGoalMl={waterGoalMl}
+                setWaterGoalMl={setWaterGoalMl}
+                waterProgress={waterProgress}
+                waterDailyLog={waterDailyLog}
+                onUpdateWater={updateWaterAmount}
+              />
+            </div>
 
-            <SleepTrackerCard
-              sleepHours={sleepHours}
-              sleepGoal={sleepGoal}
-              sleepBedTime={sleepBedTime}
-              sleepWakeTime={sleepWakeTime}
-              sleepGoalHours={sleepGoalHours}
-              setSleepGoalHours={setSleepGoalHours}
-              sleepProgress={sleepProgress}
-              sleepQuality={sleepQuality}
-              sleepAdvice={sleepAdvice}
-              sleepAlarmMessage={sleepAlarmMessage}
-              sleepDailyLog={sleepDailyLog}
-              onUpdateSleep={updateSleepEntry}
-            />
+            <div ref={sleepSectionRef} className="scroll-mt-24">
+              <SleepTrackerCard
+                sleepHours={sleepHours}
+                sleepGoal={sleepGoal}
+                sleepBedTime={sleepBedTime}
+                sleepWakeTime={sleepWakeTime}
+                sleepGoalHours={sleepGoalHours}
+                setSleepGoalHours={setSleepGoalHours}
+                sleepProgress={sleepProgress}
+                sleepQuality={sleepQuality}
+                sleepAdvice={sleepAdvice}
+                sleepAlarmMessage={sleepAlarmMessage}
+                sleepDailyLog={sleepDailyLog}
+                onUpdateSleep={updateSleepEntry}
+              />
+            </div>
 
-            <section className="grid gap-5 xl:grid-cols-2">
+            <section ref={habitsSectionRef} className="grid scroll-mt-24 gap-5 xl:grid-cols-2">
               <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 shadow-xl sm:p-7">
                 <h3 className="mb-7 text-xl font-bold">Твій прогрес</h3>
                 <div className="mb-7 flex justify-center">
@@ -7639,7 +7776,7 @@ export default function FitnessHabitsApp() {
             </section>
 
             <section className="grid gap-5 xl:grid-cols-2">
-              <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
+              <div ref={cycleSectionRef} className="glow-card scroll-mt-24 rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
                 <div className="mb-5 flex items-center justify-between">
                   <h3 className="text-xl font-bold">Звички</h3>
                   <span className="text-sm text-purple-300">
