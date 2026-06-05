@@ -5147,7 +5147,10 @@ export default function FitnessHabitsApp() {
         )}
 
         {settingsToggles.aiCoach && isCharlieOpen && (
-          <div className="fixed bottom-28 right-4 z-50 flex h-[62vh] max-h-[560px] w-[calc(100vw-2rem)] max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#15122d] shadow-2xl">
+          <div
+            className="fixed inset-x-3 z-50 mx-auto flex max-h-[min(58vh,520px)] w-auto max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#15122d] shadow-2xl"
+            style={{ bottom: "calc(122px + env(safe-area-inset-bottom))" }}
+          >
             <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-4 py-3">
               <div>
                 <h2 className="font-bold">Чарлі</h2>
@@ -5157,7 +5160,7 @@ export default function FitnessHabitsApp() {
                 x
               </button>
             </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
               {charlieMessages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
@@ -5171,7 +5174,7 @@ export default function FitnessHabitsApp() {
                 </div>
               ))}
             </div>
-            <div className="border-t border-white/10 p-3">
+            <div className="shrink-0 border-t border-white/10 bg-[#15122d] p-3">
               <div className="flex gap-2 rounded-2xl bg-white/10 p-2">
                 <input
                   value={aiQuestion}
