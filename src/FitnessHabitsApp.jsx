@@ -4219,6 +4219,26 @@ export default function FitnessHabitsApp() {
     });
   };
 
+  const removeHabit = (index) => {
+    const selectedHabit = habits[index];
+    if (!selectedHabit?.title) return;
+
+    setHabits((items) => items.filter((_, habitIndex) => habitIndex !== index));
+    setHabitDailyLog((currentLog) => {
+      const nextLog = Object.fromEntries(
+        Object.entries(currentLog).map(([dateKey, titles]) => [
+          dateKey,
+          Array.isArray(titles)
+            ? titles.filter((title) => title !== selectedHabit.title)
+            : titles,
+        ])
+      );
+
+      localStorage.setItem("habitDailyLog", JSON.stringify(nextLog));
+      return nextLog;
+    });
+  };
+
   const saveCycleTrackerEntry = () => {
     if (!cycleTracker.lastPeriodStart) {
       setCycleMessage("Вибери дату початку останніх місячних.");
@@ -8157,23 +8177,36 @@ export default function FitnessHabitsApp() {
                     </p>
                   ) : (
                     habits.map((habit, index) => (
-                      <label
+                      <div
                         key={`${habit.title}-${index}`}
-                        className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl bg-white/5 p-4 transition hover:bg-white/10"
+                        className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 p-4 transition hover:bg-white/10"
                       >
-                        <span className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleHabit(index)}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
                           <span className="text-2xl">{habit.done ? "✅" : "○"}</span>
                           <span className={habit.done ? "text-white/55 line-through" : ""}>
                             {habit.title}
                           </span>
-                        </span>
+                        </button>
                         <input
                           type="checkbox"
                           checked={habit.done}
                           onChange={() => toggleHabit(index)}
                           className="h-6 w-6 accent-pink-500"
                         />
-                      </label>
+                        <button
+                          type="button"
+                          onClick={() => removeHabit(index)}
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-500/15 text-lg font-black text-rose-100 transition hover:bg-rose-500/25"
+                          aria-label={`Видалити звичку ${habit.title}`}
+                          title="Видалити"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
