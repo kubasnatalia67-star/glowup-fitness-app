@@ -230,6 +230,13 @@ const EXERCISE_DEMO_META = {
 
 const getExerciseDemoMeta = (type) => EXERCISE_DEMO_META[type] || EXERCISE_DEMO_META.spark;
 
+const getExerciseDurationSeconds = (exercise, fallbackSeconds = 45) => {
+  const values = `${exercise?.timer || ""} ${exercise?.sets || ""}`.match(/\d+/g);
+  const parsed = values?.map(Number).find((value) => Number.isFinite(value) && value >= 10);
+
+  return parsed || fallbackSeconds;
+};
+
 const EXERCISE_DEMO_VISUALS = {
   squat: { icon: "🏋️‍♀️", label: "присід", motion: "↕" },
   bridge: { icon: "🧘‍♀️", label: "місток", motion: "↥" },
@@ -2059,6 +2066,22 @@ export default function FitnessHabitsApp() {
 
     return () => window.clearInterval(intervalId);
   }, [isTimerRunning]);
+
+  useEffect(() => {
+    if (!activeWorkout || isTimerRunning || secondsLeft !== 0) return;
+
+    setWorkoutPlanNotice("Час вправи завершено. Натисни «Наступна вправа», щоб перейти далі.");
+
+    if (settingsToggles.vibration && navigator.vibrate) {
+      navigator.vibrate([35, 25, 35]);
+    }
+  }, [
+    activeWorkout?.currentExercise,
+    activeWorkout?.id,
+    isTimerRunning,
+    secondsLeft,
+    settingsToggles.vibration,
+  ]);
 
   useEffect(() => {
     setDailyMotivation(loadAIDailyMotivation());
@@ -3939,9 +3962,15 @@ export default function FitnessHabitsApp() {
   };
 
   const startWeeklyWorkout = (workout, index) => {
+    const firstExerciseSeconds = getExerciseDurationSeconds(
+      workout.exercises[0],
+      workout.difficulty?.timerSeconds || 45
+    );
+
     setSelectedSplitIndex(index);
     setDashboardTab("training");
-    changeTimerMinutes(workout.duration);
+    setSelectedMinutes(Math.max(1, Math.ceil(firstExerciseSeconds / 60)));
+    setSecondsLeft(firstExerciseSeconds);
     setIsTimerRunning(true);
     const nextActiveWorkout = {
       id: workout.id,
@@ -3972,7 +4001,13 @@ export default function FitnessHabitsApp() {
   const resumeActiveWorkout = () => {
     if (!activeWorkout) return;
     if (secondsLeft <= 0) {
-      changeTimerMinutes(selectedSplitWorkout.duration);
+      const currentExercise = selectedSplitWorkout.exercises[activeWorkout.currentExercise || 0];
+      const currentExerciseSeconds = getExerciseDurationSeconds(
+        currentExercise,
+        selectedSplitWorkout.difficulty?.timerSeconds || 45
+      );
+
+      setSecondsLeft(currentExerciseSeconds);
     }
     setIsTimerRunning(true);
     setWorkoutPlanNotice("Тренування продовжено. Рухаємося далі по плану.");
@@ -4011,9 +4046,16 @@ export default function FitnessHabitsApp() {
       currentExercise: currentIndex + 1,
       updatedAt: new Date().toISOString(),
     };
+    const nextExercise = workout.exercises[currentIndex + 1];
+    const nextExerciseSeconds = getExerciseDurationSeconds(
+      nextExercise,
+      workout.difficulty?.timerSeconds || 45
+    );
 
     setActiveWorkout(nextActiveWorkout);
     localStorage.setItem("activeWorkout", JSON.stringify(nextActiveWorkout));
+    setSelectedMinutes(Math.max(1, Math.ceil(nextExerciseSeconds / 60)));
+    setSecondsLeft(nextExerciseSeconds);
     setIsTimerRunning(true);
 
     if (settingsToggles.vibration && navigator.vibrate) {
@@ -7512,6 +7554,8 @@ export default function FitnessHabitsApp() {
                     <div className="space-y-3">
                       {selectedSplitWorkout.exercises.map((exercise, index) => {
                         const checked = selectedSplitState.completedExercises?.includes(index);
+                        const isCurrentExercise =
+                          isSelectedWorkoutActive && activeWorkoutIndex === index;
                         const illustrationType = getExerciseIllustrationType(
                           exercise,
                           selectedSplitWorkout,
@@ -7525,7 +7569,9 @@ export default function FitnessHabitsApp() {
                             type="button"
                             onClick={() => toggleWeeklyExercise(selectedSplitWorkout, index)}
                             className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                              checked
+                              isCurrentExercise
+                                ? "border-cyan-300/70 bg-cyan-400/15 shadow-lg shadow-cyan-500/10"
+                                : checked
                                 ? "border-pink-400/60 bg-pink-500/15"
                                 : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
                             }`}
@@ -7533,7 +7579,11 @@ export default function FitnessHabitsApp() {
                             <ExerciseIllustration type={illustrationType} checked={checked} />
                             <span
                               className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black ${
-                                checked ? "bg-pink-500 text-white" : "bg-white/10 text-white/50"
+                                isCurrentExercise
+                                  ? "bg-cyan-300 text-slate-950"
+                                  : checked
+                                  ? "bg-pink-500 text-white"
+                                  : "bg-white/10 text-white/50"
                               }`}
                             >
                               {checked ? "✓" : index + 1}
@@ -7544,6 +7594,11 @@ export default function FitnessHabitsApp() {
                                 {exercise.isGoalAccent && (
                                   <span className="ml-2 rounded-full bg-orange-400/20 px-2 py-0.5 text-xs text-orange-200">
                                     ціль
+                                  </span>
+                                )}
+                                {isCurrentExercise && (
+                                  <span className="ml-2 rounded-full bg-cyan-300/20 px-2 py-0.5 text-xs text-cyan-100">
+                                    зараз
                                   </span>
                                 )}
                               </span>
@@ -7562,10 +7617,14 @@ export default function FitnessHabitsApp() {
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <button
                         type="button"
-                        onClick={() => startWeeklyWorkout(selectedSplitWorkout, selectedSplitIndex)}
+                        onClick={() =>
+                          isSelectedWorkoutActive
+                            ? resumeActiveWorkout()
+                            : startWeeklyWorkout(selectedSplitWorkout, selectedSplitIndex)
+                        }
                         className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-5 py-4 font-black text-white shadow-lg shadow-pink-500/25"
                       >
-                        Почати тренування
+                        {isSelectedWorkoutActive ? "Продовжити тренування" : "Почати тренування"}
                       </button>
                       <button
                         type="button"
