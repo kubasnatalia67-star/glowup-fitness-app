@@ -5,12 +5,19 @@ const GlowUpTts = registerPlugin("GlowUpTts");
 export const hasNativeTts = () =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
 
-export async function speakNativeText({ text, language = "uk-UA", rate = 1, pitch = 1 }) {
+export async function speakNativeText({
+  text,
+  language = "uk-UA",
+  rate = 1,
+  pitch = 1,
+  preset = "coach",
+}) {
   return GlowUpTts.speak({
     text,
     language,
     rate: Number(rate) || 1,
     pitch: Number(pitch) || 1,
+    preset,
   });
 }
 

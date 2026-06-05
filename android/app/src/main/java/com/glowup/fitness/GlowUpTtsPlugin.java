@@ -2,6 +2,7 @@ package com.glowup.fitness;
 
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -10,8 +11,10 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @CapacitorPlugin(name = "GlowUpTts")
 public class GlowUpTtsPlugin extends Plugin {
@@ -30,6 +33,7 @@ public class GlowUpTtsPlugin extends Plugin {
     public void speak(PluginCall call) {
         String text = call.getString("text", "");
         String language = call.getString("language", "uk-UA");
+        String preset = call.getString("preset", "coach");
         Float rate = call.getFloat("rate", 1.0f);
         Float pitch = call.getFloat("pitch", 1.0f);
 
@@ -50,6 +54,10 @@ public class GlowUpTtsPlugin extends Plugin {
                 return;
             }
 
+            Voice selectedVoice = findBestVoice(selectedLocale, preset);
+            if (selectedVoice != null) {
+                textToSpeech.setVoice(selectedVoice);
+            }
             textToSpeech.setSpeechRate(rate == null ? 1.0f : rate);
             textToSpeech.setPitch(pitch == null ? 1.0f : pitch);
             textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -82,8 +90,10 @@ public class GlowUpTtsPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("spoken", true);
             response.put("language", selectedLocale.toLanguageTag());
+            response.put("voice", selectedVoice == null ? "" : selectedVoice.getName());
             response.put("rate", rate == null ? 1.0f : rate);
             response.put("pitch", pitch == null ? 1.0f : pitch);
+            response.put("preset", preset);
             call.resolve(response);
         };
 
@@ -121,6 +131,48 @@ public class GlowUpTtsPlugin extends Plugin {
         }
 
         return null;
+    }
+
+    private Voice findBestVoice(Locale selectedLocale, String preset) {
+        Set<Voice> voices = textToSpeech.getVoices();
+        if (voices == null || voices.isEmpty()) return null;
+
+        String language = selectedLocale.getLanguage();
+        String country = selectedLocale.getCountry();
+        String normalizedPreset = preset == null ? "coach" : preset.toLowerCase(Locale.ROOT);
+
+        return voices.stream()
+            .filter(voice -> voice.getLocale() != null)
+            .filter(voice -> language.equals(voice.getLocale().getLanguage()))
+            .sorted(
+                Comparator
+                    .comparingInt((Voice voice) -> scoreVoice(voice, country, normalizedPreset))
+                    .reversed()
+            )
+            .findFirst()
+            .orElse(null);
+    }
+
+    private int scoreVoice(Voice voice, String country, String preset) {
+        int score = 0;
+        String name = voice.getName() == null ? "" : voice.getName().toLowerCase(Locale.ROOT);
+        Locale locale = voice.getLocale();
+
+        if (locale != null && !country.isEmpty() && country.equals(locale.getCountry())) score += 30;
+        if (!voice.isNetworkConnectionRequired()) score += 20;
+        score += voice.getQuality() * 6;
+        score -= voice.getLatency() * 2;
+
+        if ("coach".equals(preset)) {
+            if (name.contains("male") || name.contains("man") || name.contains("david") || name.contains("daniel")) score += 12;
+            if (name.contains("network")) score -= 4;
+        } else if ("bright".equals(preset)) {
+            if (name.contains("female") || name.contains("woman") || name.contains("google")) score += 10;
+        } else if ("soft".equals(preset) || "calm".equals(preset)) {
+            if (name.contains("female") || name.contains("natural") || name.contains("google")) score += 8;
+        }
+
+        return score;
     }
 
     private List<Locale> getLocaleCandidates(String language) {

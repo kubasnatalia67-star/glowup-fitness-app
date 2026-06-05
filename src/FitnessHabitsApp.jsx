@@ -3294,6 +3294,7 @@ export default function FitnessHabitsApp() {
           language: languageCode,
           rate: voiceRate,
           pitch: voicePitch,
+          preset: voicePreset,
         });
         console.log("[GlowUp Charlie TTS] native speak result", result);
         setVoiceMessage("\u0413\u043e\u043b\u043e\u0441 \u0427\u0430\u0440\u043b\u0456 \u043f\u0440\u0430\u0446\u044e\u0454.");

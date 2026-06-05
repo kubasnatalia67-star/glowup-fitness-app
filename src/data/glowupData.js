@@ -151,7 +151,7 @@ export const APP_THEMES = {
 export const CHARLIE_VOICE_PRESETS = {
   calm: { label: "Спокійний", rate: 0.9, pitch: 0.95 },
   bright: { label: "Енергійний", rate: 1.08, pitch: 1.15 },
-  coach: { label: "Тренер", rate: 1.02, pitch: 0.9 },
+  coach: { label: "Фітнес-тренер", rate: 1.04, pitch: 1.0 },
   soft: { label: "М'який", rate: 0.85, pitch: 1.05 },
 };
 
