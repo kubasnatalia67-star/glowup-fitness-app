@@ -1946,6 +1946,92 @@ export default function FitnessHabitsApp() {
       selectedMinutes,
     ]
   );
+  const charlieCoachContext = useMemo(
+    () => ({
+      today: getLocalDateKey(),
+      profileName,
+      language: appLanguage,
+      goal: profile.goal || "",
+      currentWeight,
+      calories: {
+        eaten: caloriesTodayTotal,
+        goal: dailyNutritionGoals.calories,
+        protein: todayDiaryProtein,
+        fat: todayDiaryFat,
+        carbs: todayDiaryCarbs,
+        diaryItems: todayDiaryEntries.length,
+      },
+      water: {
+        consumedMl: waterConsumedMl,
+        goalMl: waterGoal,
+        progress: waterProgress,
+      },
+      sleep: {
+        hours: sleepHours,
+        goal: sleepGoal,
+        quality: sleepQuality.label,
+        mood: sleepMood,
+      },
+      steps: {
+        today: steps,
+        goal: stepsGoal,
+        distanceKm: stepsDistanceKm,
+      },
+      habits: {
+        completed: completedHabits,
+        total: habits.length,
+        streakDays: habitStreakDays,
+      },
+      workout: {
+        title: selectedSplitWorkout.title,
+        progress: selectedSplitProgress,
+        active: Boolean(activeWorkout?.id),
+        streak: workoutStreak,
+      },
+      cycle: {
+        ready: cycleInfo.ready,
+        day: cycleInfo.day,
+        phase: cycleInfo.phase,
+        daysToNext: cycleInfo.daysToNext,
+      },
+      plan: {
+        summary: personalPlan.summary,
+        focus: personalPlan.workMore,
+        nextStep: personalPlan.nextSteps?.[0] || "",
+      },
+    }),
+    [
+      activeWorkout?.id,
+      appLanguage,
+      caloriesTodayTotal,
+      completedHabits,
+      currentWeight,
+      cycleInfo,
+      dailyNutritionGoals.calories,
+      habitStreakDays,
+      habits.length,
+      personalPlan,
+      profile.goal,
+      profileName,
+      selectedSplitProgress,
+      selectedSplitWorkout.title,
+      sleepGoal,
+      sleepHours,
+      sleepMood,
+      sleepQuality.label,
+      steps,
+      stepsDistanceKm,
+      stepsGoal,
+      todayDiaryCarbs,
+      todayDiaryEntries.length,
+      todayDiaryFat,
+      todayDiaryProtein,
+      waterConsumedMl,
+      waterGoal,
+      waterProgress,
+      workoutStreak,
+    ]
+  );
   const onboardingPlan = useMemo(
     () => buildOnboardingPlan(onboardingData),
     [onboardingData]
@@ -3262,6 +3348,22 @@ export default function FitnessHabitsApp() {
     return "Я Чарлі. Можу відповідати про звички, спорт, їжу, ментальне здоров'я, фокус і заробіток.";
   };
 
+  const buildCharlieOfflineAnswer = (rawQuestion) => {
+    const baseAnswer = buildCharlieAnswer(rawQuestion);
+    const offlineNotes = {
+      uk: "Я зараз відповіла в офлайн-режимі GlowUp. Коли AI backend доступний, дам більш персональну відповідь по твоїх даних.",
+      en: "I answered in GlowUp offline mode for now. When the AI backend is available, I can make it more personal.",
+      pl: "Na razie odpowiadam w trybie offline GlowUp. Gdy backend AI będzie dostępny, odpowiedź będzie bardziej osobista.",
+      de: "Ich antworte gerade im GlowUp-Offline-Modus. Wenn das AI-Backend verfügbar ist, wird die Antwort persönlicher.",
+      es: "Ahora respondo en modo offline de GlowUp. Cuando el backend de IA esté disponible, la respuesta será más personal.",
+      fr: "Je réponds pour l'instant en mode hors ligne GlowUp. Quand le backend IA sera disponible, la réponse sera plus personnalisée.",
+      it: "Per ora rispondo in modalità offline GlowUp. Quando il backend AI sarà disponibile, la risposta sarà più personalizzata.",
+      pt: "Por enquanto respondo no modo offline do GlowUp. Quando o backend de IA estiver disponível, a resposta será mais personalizada.",
+    };
+
+    return `${baseAnswer}\n\n${offlineNotes[appLanguage] || offlineNotes.uk}`;
+  };
+
   const takePhoto = async () => {
     const video = videoRef.current;
     if (!video || !cameraTarget) return;
@@ -3318,6 +3420,7 @@ export default function FitnessHabitsApp() {
         messages: nextMessages,
         profile,
         language: appLanguage,
+        context: charlieCoachContext,
       });
       const answer = result.answer || buildCharlieAnswer(questionOverride);
       setAiAnswer(answer);
@@ -3328,7 +3431,7 @@ export default function FitnessHabitsApp() {
       speak(answer);
     } catch (error) {
       console.error("[GlowUp Charlie] fallback answer used", error);
-      const answer = `${buildCharlieAnswer(questionOverride)}\n\nCharlie зараз відповів локально. Причина: ${error.message}`;
+      const answer = buildCharlieOfflineAnswer(questionOverride);
       setAiAnswer(answer);
       setCharlieMessages((messages) => [
         ...messages,

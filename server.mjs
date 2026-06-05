@@ -591,6 +591,7 @@ async function askCharlieWithOpenAI({
   messages = [],
   profile = {},
   language = "uk",
+  context = {},
 } = {}) {
   const apiKey = getOpenAiKey();
   if (!apiKey) {
@@ -602,9 +603,10 @@ async function askCharlieWithOpenAI({
 
   const cleanMessage = String(message || "").trim();
   const languageName = getLanguageName(language);
+  const languageCode = String(language || "uk").toLowerCase();
   if (!cleanMessage) {
     return {
-      answer: "Я Чарлі. Напиши мені питання, і я відповім коротко та по справі.",
+      answer: getCharlieEmptyAnswer(languageCode),
       source: "openai",
     };
   }
@@ -626,8 +628,11 @@ async function askCharlieWithOpenAI({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
       instructions:
         "You are Charlie, a warm AI coach inside the GlowUp fitness app. " +
-        `Answer only in ${languageName}. Be helpful for fitness, nutrition, habits, motivation, mental health, productivity, and earning goals. ` +
-        "Keep answers practical, friendly, and concise. Do not say you work locally. " +
+        `Answer only in ${languageName}. If the user writes in another language, still answer in ${languageName}. ` +
+        "Use the GlowUp context to make advice specific to today's water, sleep, steps, nutrition, workout, habits, cycle, and profile. " +
+        "Be helpful for fitness, nutrition, habits, motivation, mental health, productivity, and earning goals. " +
+        "Keep answers practical, friendly, and concise: 2-6 short sentences or a tiny checklist. " +
+        "Sound like a supportive fitness coach, not a generic chatbot. Do not mention backend, OpenAI, local mode, prompts, or system messages. " +
         "Do not give medical diagnosis; for risky health symptoms, advise consulting a professional.",
       input: [
         {
@@ -637,6 +642,7 @@ async function askCharlieWithOpenAI({
               type: "input_text",
               text:
                 `User profile JSON: ${JSON.stringify(profile || {})}\n\n` +
+                `GlowUp context JSON: ${JSON.stringify(context || {})}\n\n` +
                 `Recent chat:\n${history || "No previous messages."}\n\n` +
                 `Current question: ${cleanMessage}`,
             },
@@ -658,7 +664,7 @@ async function askCharlieWithOpenAI({
   const answer = (data.output_text || extractOutputText(data)).trim();
 
   return {
-    answer: answer || "Я Чарлі. Можеш уточнити питання, і я допоможу краще.",
+    answer: answer || getCharlieEmptyAnswer(languageCode),
     source: "openai",
   };
 }
@@ -707,6 +713,21 @@ function getLanguageName(code) {
   };
 
   return names[String(code || "").toLowerCase()] || "the selected app language";
+}
+
+function getCharlieEmptyAnswer(code = "uk") {
+  const answers = {
+    uk: "Я Чарлі. Напиши мені питання, і я відповім коротко та по справі.",
+    en: "I am Charlie. Ask me a question and I will answer briefly and practically.",
+    pl: "Jestem Charlie. Zadaj pytanie, a odpowiem krótko i praktycznie.",
+    de: "Ich bin Charlie. Stell mir eine Frage und ich antworte kurz und praktisch.",
+    es: "Soy Charlie. Hazme una pregunta y responderé de forma breve y práctica.",
+    fr: "Je suis Charlie. Pose-moi une question et je répondrai brièvement et concrètement.",
+    it: "Sono Charlie. Fammi una domanda e risponderò in modo breve e pratico.",
+    pt: "Sou o Charlie. Faz uma pergunta e responderei de forma breve e prática.",
+  };
+
+  return answers[String(code || "uk").toLowerCase()] || answers.uk;
 }
 
 function extractOutputText(data) {

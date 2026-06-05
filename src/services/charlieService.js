@@ -3,13 +3,14 @@ import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp Charlie]";
 
-export async function askCharlie({ message, messages, profile, language }) {
+export async function askCharlie({ message, messages, profile, language, context }) {
   const apiUrl = getCharlieApiUrl();
   const payload = {
     message,
     messages,
     profile,
     language,
+    context,
   };
 
   console.log(`${DEBUG_PREFIX} API request`, {
@@ -17,6 +18,7 @@ export async function askCharlie({ message, messages, profile, language }) {
     messageLength: String(message || "").length,
     historyItems: Array.isArray(messages) ? messages.length : 0,
     language,
+    hasContext: Boolean(context),
   });
 
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
