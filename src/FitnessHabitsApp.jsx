@@ -632,12 +632,8 @@ function ExerciseIllustration({ type, checked }) {
     >
       <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(236,72,153,0.32),transparent_48%)]" />
       <span className="absolute inset-x-4 bottom-4 h-4 rounded-full bg-fuchsia-300/25 blur-md" />
-      <span className="absolute left-2 top-2 rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-fuchsia-100">
-        demo
-      </span>
-      <span className="absolute right-2 top-2 flex gap-1">
-        <span className="h-2 w-2 rounded-full bg-cyan-300" />
-        <span className="h-2 w-2 rounded-full bg-pink-300" />
+      <span className="absolute left-2 top-2 rounded-full bg-fuchsia-400/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-fuchsia-100">
+        рух
       </span>
       <span
         className={`exercise-demo-person exercise-motion-${visual.motion || "breath"} absolute inset-2 rounded-[18px] bg-cover bg-no-repeat shadow-[0_0_24px_rgba(236,72,153,0.34)]`}
