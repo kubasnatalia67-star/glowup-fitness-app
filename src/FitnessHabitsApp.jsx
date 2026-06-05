@@ -1049,6 +1049,9 @@ export default function FitnessHabitsApp() {
     ])
   );
   const [newHabit, setNewHabit] = useState("");
+  const [habitDailyLog, setHabitDailyLog] = useState(() =>
+    readJson("habitDailyLog", {})
+  );
   const [cycleTracker, setCycleTracker] = useState(() => ({
     ...DEFAULT_CYCLE_TRACKER,
     ...readJson("cycleTracker", {}),
@@ -1351,6 +1354,9 @@ export default function FitnessHabitsApp() {
   const lostWeight = 7.2;
 
   const completedHabits = habits.filter((habit) => habit.done).length;
+  const completedHabitTitles = habits
+    .filter((habit) => habit.done)
+    .map((habit) => habit.title);
   const habitProgress = habits.length
     ? Math.round((completedHabits / habits.length) * 100)
     : 0;
@@ -1374,16 +1380,67 @@ export default function FitnessHabitsApp() {
       water: dates.map((dateKey) =>
         dateKey === todayKey ? Number(waterConsumedMl) || 0 : Number(waterDailyLog[dateKey]) || 0
       ),
-      habits: dates.map((dateKey) => (dateKey === todayKey ? completedHabits : 0)),
+      habits: dates.map((dateKey) => {
+        const completedForDate = dateKey === todayKey ? completedHabitTitles : habitDailyLog[dateKey];
+
+        return Array.isArray(completedForDate)
+          ? completedForDate.length
+          : Number(completedForDate) || 0;
+      }),
     };
   }, [
     completedHabits,
+    completedHabitTitles,
     foodDiary,
+    habitDailyLog,
     steps,
     stepsDailyLog,
     waterConsumedMl,
     waterDailyLog,
   ]);
+
+  const habitLast7Days = progressChartSeries.habits.map((value) => Number(value) || 0);
+  const habitAverage7Days = formatOneDecimal(
+    habitLast7Days.reduce((sum, value) => sum + value, 0) / Math.max(habitLast7Days.length, 1)
+  );
+  const habitPerfectDays7Days =
+    habits.length > 0 ? habitLast7Days.filter((value) => value >= habits.length).length : 0;
+  const habitBest7Days = Math.max(...habitLast7Days, 0);
+  const habitStreakDays = (() => {
+    if (!habits.length) return 0;
+
+    let streak = 0;
+
+    for (let offset = 0; offset < 30; offset += 1) {
+      const dateKey = addDaysToDateKey(getLocalDateKey(), -offset);
+      const completedForDate = offset === 0 ? completedHabitTitles : habitDailyLog[dateKey];
+      const completedCount = Array.isArray(completedForDate)
+        ? completedForDate.length
+        : Number(completedForDate) || 0;
+
+      if (completedCount < habits.length) break;
+      streak += 1;
+    }
+
+    return streak;
+  })();
+  const mostMissedHabit = (() => {
+    if (!habits.length) return null;
+
+    const dates = getLastDateKeys(7);
+    const missed = habits.map((habit) => {
+      const missedDays = dates.filter((dateKey) => {
+        const completedForDate =
+          dateKey === getLocalDateKey() ? completedHabitTitles : habitDailyLog[dateKey];
+
+        return !Array.isArray(completedForDate) || !completedForDate.includes(habit.title);
+      }).length;
+
+      return { title: habit.title, missedDays };
+    });
+
+    return missed.sort((a, b) => b.missedDays - a.missedDays)[0];
+  })();
 
   const stepsProgress = Math.min(Math.round((steps / stepsGoal) * 100), 100);
   const stepStrideMeters = Math.max(0.5, Math.min(0.9, (Number(profile.height) || 165) * 0.00414));
@@ -1916,6 +1973,10 @@ export default function FitnessHabitsApp() {
   useEffect(() => {
     localStorage.setItem("userHabits", JSON.stringify(habits));
   }, [habits]);
+
+  useEffect(() => {
+    localStorage.setItem("habitDailyLog", JSON.stringify(habitDailyLog));
+  }, [habitDailyLog]);
 
   useEffect(() => {
     localStorage.setItem("cycleTracker", JSON.stringify(cycleTracker));
@@ -3827,11 +3888,31 @@ export default function FitnessHabitsApp() {
   };
 
   const toggleHabit = (index) => {
+    const selectedHabit = habits[index];
+    const nextDone = !selectedHabit?.done;
+
     setHabits(
       habits.map((habit, habitIndex) =>
         habitIndex === index ? { ...habit, done: !habit.done } : habit
       )
     );
+
+    if (!selectedHabit?.title) return;
+
+    setHabitDailyLog((currentLog) => {
+      const todayKey = getLocalDateKey();
+      const currentTitles = Array.isArray(currentLog[todayKey])
+        ? currentLog[todayKey]
+        : completedHabitTitles;
+      const nextTitles = nextDone
+        ? Array.from(new Set([...currentTitles, selectedHabit.title]))
+        : currentTitles.filter((title) => title !== selectedHabit.title);
+
+      return {
+        ...currentLog,
+        [todayKey]: nextTitles,
+      };
+    });
   };
 
   const saveCycleTrackerEntry = () => {
@@ -7616,6 +7697,54 @@ export default function FitnessHabitsApp() {
                     className="h-full rounded-full bg-gradient-to-r from-pink-500 to-purple-500"
                     style={{ width: `${habitProgress}%` }}
                   />
+                </div>
+                <div className="mt-5 rounded-3xl bg-white/5 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-200/70">Звіт за 7 днів</p>
+                      <p className="mt-1 text-sm text-white/55">Історія зберігається після кожної галочки.</p>
+                    </div>
+                    <span className="rounded-2xl bg-pink-500/15 px-3 py-2 text-sm font-black text-pink-100">
+                      {habitPerfectDays7Days}/7
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[
+                      ["Серія", `${habitStreakDays} дн.`],
+                      ["Середнє", `${habitAverage7Days} / день`],
+                      ["Найкращий день", `${habitBest7Days} з ${habits.length || 0}`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0 rounded-2xl bg-black/20 p-3">
+                        <p className="text-xs text-white/40">{label}</p>
+                        <p className="mt-1 break-words text-lg font-black text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex h-28 items-end gap-2 overflow-hidden rounded-3xl bg-[#111026] p-3">
+                    {habitLast7Days.map((value, index) => {
+                      const progress = habits.length ? Math.round((value / habits.length) * 100) : 0;
+                      const isPerfect = habits.length > 0 && value >= habits.length;
+
+                      return (
+                        <div key={`${progressChartSeries.labels[index]}-habit-${index}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                          <div className="flex h-16 w-full max-w-8 items-end rounded-full bg-white/10 p-1">
+                            <div
+                              className={`w-full rounded-full ${isPerfect ? "bg-gradient-to-t from-emerald-400 to-cyan-300" : "bg-gradient-to-t from-purple-500 to-pink-500"}`}
+                              style={{ height: `${Math.max(progress, value > 0 ? 12 : 5)}%` }}
+                            />
+                          </div>
+                          <span className="truncate text-[11px] font-bold text-white/45">
+                            {progressChartSeries.labels[index]}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {mostMissedHabit && mostMissedHabit.missedDays > 0 && (
+                    <p className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-white/65">
+                      Найчастіше пропускалась: <span className="font-bold text-white">{mostMissedHabit.title}</span> ({mostMissedHabit.missedDays} дн. за тиждень).
+                    </p>
+                  )}
                 </div>
               </div>
 
