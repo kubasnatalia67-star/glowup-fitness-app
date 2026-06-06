@@ -118,8 +118,29 @@ const DEFAULT_CYCLE_TRACKER = {
   lastPeriodStart: "",
   periodLength: 5,
   cycleLength: 28,
+  mood: "",
+  painLevel: 0,
+  symptoms: [],
   note: "",
 };
+
+const CYCLE_MOOD_OPTIONS = [
+  { value: "", label: "Обери настрій" },
+  { value: "good", label: "Добрий" },
+  { value: "calm", label: "Спокійний" },
+  { value: "sensitive", label: "Чутливий" },
+  { value: "irritable", label: "Дратівливий" },
+  { value: "low", label: "Пригнічений" },
+];
+
+const CYCLE_SYMPTOM_OPTIONS = [
+  { value: "cramps", label: "Спазми" },
+  { value: "headache", label: "Головний біль" },
+  { value: "bloating", label: "Здуття" },
+  { value: "fatigue", label: "Втома" },
+  { value: "backPain", label: "Біль у спині" },
+  { value: "cravings", label: "Тяга до солодкого" },
+];
 
 const dateKeyToDate = (dateKey) => new Date(`${dateKey}T00:00:00`);
 
@@ -4249,6 +4270,13 @@ export default function FitnessHabitsApp() {
       ...cycleTracker,
       periodLength: Math.max(2, Math.min(10, Number(cycleTracker.periodLength) || 5)),
       cycleLength: Math.max(21, Math.min(45, Number(cycleTracker.cycleLength) || 28)),
+      mood: String(cycleTracker.mood || ""),
+      painLevel: Math.max(0, Math.min(10, Number(cycleTracker.painLevel) || 0)),
+      symptoms: Array.isArray(cycleTracker.symptoms)
+        ? cycleTracker.symptoms.filter((symptom) =>
+            CYCLE_SYMPTOM_OPTIONS.some((option) => option.value === symptom)
+          )
+        : [],
       note: String(cycleTracker.note || "").slice(0, 160),
     };
 
@@ -4260,6 +4288,9 @@ export default function FitnessHabitsApp() {
         lastPeriodStart: normalizedTracker.lastPeriodStart,
         periodLength: normalizedTracker.periodLength,
         cycleLength: normalizedTracker.cycleLength,
+        mood: normalizedTracker.mood,
+        painLevel: normalizedTracker.painLevel,
+        symptoms: normalizedTracker.symptoms,
         note: normalizedTracker.note,
       },
       ...items.filter((item) => item.lastPeriodStart !== normalizedTracker.lastPeriodStart).slice(0, 11),
@@ -8330,6 +8361,81 @@ export default function FitnessHabitsApp() {
                   </label>
                 </div>
 
+                <div className="mt-4 grid gap-4 rounded-3xl bg-white/5 p-4 sm:grid-cols-2">
+                  <label className="min-w-0">
+                    <span className="mb-2 block text-xs font-bold text-white/55">Настрій сьогодні</span>
+                    <select
+                      value={cycleTracker.mood || ""}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, mood: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-[#24203f] px-4 py-3 text-white outline-none"
+                    >
+                      {CYCLE_MOOD_OPTIONS.map((option) => (
+                        <option key={option.value || "empty"} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="min-w-0">
+                    <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-white/55">
+                      <span>Рівень болю</span>
+                      <span className="rounded-xl bg-pink-500/15 px-2 py-1 text-pink-100">
+                        {Number(cycleTracker.painLevel) || 0}/10
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="1"
+                      value={cycleTracker.painLevel || 0}
+                      onChange={(event) =>
+                        setCycleTracker((current) => ({ ...current, painLevel: Number(event.target.value) }))
+                      }
+                      className="h-11 w-full accent-pink-500"
+                    />
+                  </label>
+
+                  <div className="min-w-0 sm:col-span-2">
+                    <p className="mb-2 text-xs font-bold text-white/55">Симптоми</p>
+                    <div className="flex flex-wrap gap-2">
+                      {CYCLE_SYMPTOM_OPTIONS.map((option) => {
+                        const selected = Array.isArray(cycleTracker.symptoms)
+                          && cycleTracker.symptoms.includes(option.value);
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              setCycleTracker((current) => {
+                                const currentSymptoms = Array.isArray(current.symptoms) ? current.symptoms : [];
+                                return {
+                                  ...current,
+                                  symptoms: selected
+                                    ? currentSymptoms.filter((symptom) => symptom !== option.value)
+                                    : [...currentSymptoms, option.value],
+                                };
+                              })
+                            }
+                            className={`max-w-full rounded-2xl border px-3 py-2 text-sm font-bold transition ${
+                              selected
+                                ? "border-pink-400 bg-pink-500/20 text-pink-100"
+                                : "border-white/10 bg-black/20 text-white/60"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={saveCycleTrackerEntry}
@@ -8382,6 +8488,23 @@ export default function FitnessHabitsApp() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-bold text-white">{formatCycleDate(entry.lastPeriodStart)}</span>
                           <span>{entry.cycleLength} дн. цикл · {entry.periodLength} дн.</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                          {entry.mood && (
+                            <span className="rounded-xl bg-purple-500/15 px-2 py-1 text-purple-100">
+                              {CYCLE_MOOD_OPTIONS.find((option) => option.value === entry.mood)?.label || entry.mood}
+                            </span>
+                          )}
+                          {Number(entry.painLevel) > 0 && (
+                            <span className="rounded-xl bg-pink-500/15 px-2 py-1 text-pink-100">
+                              Біль {entry.painLevel}/10
+                            </span>
+                          )}
+                          {(Array.isArray(entry.symptoms) ? entry.symptoms : []).map((symptom) => (
+                            <span key={symptom} className="rounded-xl bg-white/10 px-2 py-1 text-white/65">
+                              {CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === symptom)?.label || symptom}
+                            </span>
+                          ))}
                         </div>
                         {entry.note && <p className="mt-1 break-words text-white/50">{entry.note}</p>}
                       </div>
