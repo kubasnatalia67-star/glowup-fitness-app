@@ -4345,6 +4345,11 @@ export default function FitnessHabitsApp() {
     setCycleMessage("Цикл оновлено. Прогноз перерахований.");
   };
 
+  const removeCycleHistoryEntry = (entryId) => {
+    setCycleHistory((items) => items.filter((entry) => entry.id !== entryId));
+    setCycleMessage("Запис видалено. Статистика циклу оновлена.");
+  };
+
   const saveWeight = () => {
     const nextWeight = Number(weightInput);
 
@@ -8586,7 +8591,18 @@ export default function FitnessHabitsApp() {
                       <div key={entry.id} className="rounded-2xl bg-white/5 p-3 text-sm text-white/65">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-bold text-white">{formatCycleDate(entry.lastPeriodStart)}</span>
-                          <span>{entry.cycleLength} дн. цикл · {entry.periodLength} дн.</span>
+                          <div className="flex items-center gap-2">
+                            <span>{entry.cycleLength} дн. цикл · {entry.periodLength} дн.</span>
+                            <button
+                              type="button"
+                              onClick={() => removeCycleHistoryEntry(entry.id)}
+                              aria-label={`Видалити запис циклу за ${formatCycleDate(entry.lastPeriodStart)}`}
+                              title="Видалити запис"
+                              className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-lg font-bold text-white/45 transition hover:border-rose-300/40 hover:bg-rose-500/15 hover:text-rose-100"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           {entry.mood && (
