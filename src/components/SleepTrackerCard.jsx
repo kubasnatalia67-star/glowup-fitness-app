@@ -61,6 +61,7 @@ export default function SleepTrackerCard({
   sleepAlarmMessage,
   sleepDailyLog = {},
   onUpdateSleep,
+  onDeleteSleep,
 }) {
   const sleepHistory = getLastSleepDates(7).map((dateKey) => {
     const entry = sleepDailyLog[dateKey] || {};
@@ -258,7 +259,18 @@ export default function SleepTrackerCard({
                 <div key={entry.dateKey} className="rounded-2xl bg-white/5 p-3 text-sm text-white/70">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-bold text-white">{formatSleepDate(entry.dateKey)}</span>
-                    <span className="font-black text-indigo-100">{entry.hours ? `${entry.hours} год` : "без часу"}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-indigo-100">{entry.hours ? `${entry.hours} год` : "без часу"}</span>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteSleep?.(entry.dateKey)}
+                        aria-label={`Видалити запис сну за ${formatSleepDate(entry.dateKey)}`}
+                        title="Видалити запис"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-lg font-bold text-white/45 transition hover:border-rose-300/40 hover:bg-rose-500/15 hover:text-rose-100"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-white/45">
                     {entry.bedTime || "--:--"} - {entry.wakeTime || "--:--"}

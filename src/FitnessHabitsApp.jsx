@@ -3138,6 +3138,13 @@ export default function FitnessHabitsApp() {
     }
   };
 
+  const removeSleepEntry = (dateKey) => {
+    setSleepDailyLog((log) =>
+      Object.fromEntries(Object.entries(log).filter(([entryDate]) => entryDate !== dateKey))
+    );
+    setSleepAlarmMessage("Запис сну видалено. Звіт за 7 днів оновлений.");
+  };
+
   const addManualFoodToDiary = () => {
     const name = manualFood.name.trim();
     if (!name) return;
@@ -8095,6 +8102,7 @@ export default function FitnessHabitsApp() {
                 sleepAlarmMessage={sleepAlarmMessage}
                 sleepDailyLog={sleepDailyLog}
                 onUpdateSleep={updateSleepEntry}
+                onDeleteSleep={removeSleepEntry}
               />
             </div>
 
