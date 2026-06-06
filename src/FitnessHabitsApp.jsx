@@ -1557,6 +1557,53 @@ export default function FitnessHabitsApp() {
       progress: Math.min(100, Math.round((day / cycleLength) * 100)),
     };
   }, [cycleTracker]);
+  const cycleStats = useMemo(() => {
+    const entries = cycleHistory
+      .filter((entry) => entry?.lastPeriodStart)
+      .sort((a, b) => a.lastPeriodStart.localeCompare(b.lastPeriodStart));
+    const recordedCycleLengths = entries
+      .map((entry) => Number(entry.cycleLength))
+      .filter((value) => value >= 21 && value <= 45);
+    const actualCycleLengths = entries
+      .slice(1)
+      .map((entry, index) =>
+        getDateKeyDiffDays(entries[index].lastPeriodStart, entry.lastPeriodStart)
+      )
+      .filter((value) => value >= 15 && value <= 60);
+    const cycleLengths = actualCycleLengths.length ? actualCycleLengths : recordedCycleLengths;
+    const periodLengths = entries
+      .map((entry) => Number(entry.periodLength))
+      .filter((value) => value >= 2 && value <= 10);
+    const painLevels = entries
+      .map((entry) => Number(entry.painLevel))
+      .filter((value) => value > 0);
+    const symptomCounts = entries.reduce((counts, entry) => {
+      (Array.isArray(entry.symptoms) ? entry.symptoms : []).forEach((symptom) => {
+        counts[symptom] = (counts[symptom] || 0) + 1;
+      });
+      return counts;
+    }, {});
+    const topSymptoms = Object.entries(symptomCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([value, count]) => ({
+        value,
+        count,
+        label: CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === value)?.label || value,
+      }));
+    const average = (values) =>
+      values.length
+        ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10
+        : 0;
+
+    return {
+      entriesCount: entries.length,
+      averageCycleLength: average(cycleLengths),
+      averagePeriodLength: average(periodLengths),
+      averagePain: average(painLevels),
+      topSymptoms,
+    };
+  }, [cycleHistory]);
   const caloriesProgress = Math.min(
     Math.round((caloriesTodayTotal / dailyNutritionGoals.calories) * 100),
     100
@@ -8480,6 +8527,58 @@ export default function FitnessHabitsApp() {
                     ))}
                   </div>
                 </div>
+
+                {cycleStats.entriesCount > 0 && (
+                  <div className="mt-4 rounded-3xl border border-pink-300/10 bg-pink-500/[0.06] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-pink-200/70">
+                          Статистика циклу
+                        </p>
+                        <h4 className="mt-1 text-lg font-black text-white">
+                          За {cycleStats.entriesCount} записів
+                        </h4>
+                      </div>
+                      <span className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white/55">
+                        Особиста історія
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        ["Середній цикл", cycleStats.averageCycleLength ? `${cycleStats.averageCycleLength} дн.` : "-"],
+                        ["Місячні", cycleStats.averagePeriodLength ? `${cycleStats.averagePeriodLength} дн.` : "-"],
+                        ["Середній біль", cycleStats.averagePain ? `${cycleStats.averagePain}/10` : "0/10"],
+                        ["Записів", cycleStats.entriesCount],
+                      ].map(([label, value]) => (
+                        <div key={label} className="min-w-0 rounded-2xl bg-black/20 p-3">
+                          <p className="text-xs text-white/40">{label}</p>
+                          <p className="mt-1 break-words text-lg font-black text-white">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {cycleStats.topSymptoms.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold text-white/45">Найчастіші симптоми</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {cycleStats.topSymptoms.map((symptom) => (
+                            <span
+                              key={symptom.value}
+                              className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold text-white/70"
+                            >
+                              {symptom.label} · {symptom.count}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-xs leading-relaxed text-white/35">
+                      Прогноз орієнтовний і не замінює консультацію лікаря.
+                    </p>
+                  </div>
+                )}
 
                 {cycleHistory.length > 0 && (
                   <div className="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
