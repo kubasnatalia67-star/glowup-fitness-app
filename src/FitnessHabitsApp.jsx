@@ -920,6 +920,7 @@ export default function FitnessHabitsApp() {
     arm: "",
     leg: "",
   });
+  const [editingMeasurementId, setEditingMeasurementId] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const [motivationData, setMotivationData] = useState(loadDailyMotivation);
   const [dailyMotivation, setDailyMotivation] = useState(loadAIDailyMotivation);
@@ -3211,10 +3212,7 @@ export default function FitnessHabitsApp() {
   };
 
   const saveMeasurements = () => {
-    const entry = {
-      id: `measurements-${Date.now()}`,
-      date: getLocalDateKey(),
-      createdAt: new Date().toISOString(),
+    const values = {
       waist: Number(measurementForm.waist) || 0,
       hips: Number(measurementForm.hips) || 0,
       chest: Number(measurementForm.chest) || 0,
@@ -3222,25 +3220,54 @@ export default function FitnessHabitsApp() {
       leg: Number(measurementForm.leg) || 0,
     };
 
-    if (!MEASUREMENT_FIELDS.some(([key]) => entry[key] > 0)) return;
-    setMeasurements((items) => [entry, ...items].slice(0, 30));
+    if (!MEASUREMENT_FIELDS.some(([key]) => values[key] > 0)) return;
+
+    if (editingMeasurementId) {
+      setMeasurements((items) =>
+        items.map((entry) =>
+          entry.id === editingMeasurementId
+            ? { ...entry, ...values, updatedAt: new Date().toISOString() }
+            : entry
+        )
+      );
+    } else {
+      const entry = {
+        id: `measurements-${Date.now()}`,
+        date: getLocalDateKey(),
+        createdAt: new Date().toISOString(),
+        ...values,
+      };
+      setMeasurements((items) => [entry, ...items].slice(0, 30));
+    }
+
     setMeasurementForm({ waist: "", hips: "", chest: "", arm: "", leg: "" });
+    setEditingMeasurementId(null);
   };
 
   const removeMeasurement = (id) => {
     setMeasurements((items) => items.filter((item) => item.id !== id));
+    if (editingMeasurementId === id) {
+      setMeasurementForm({ waist: "", hips: "", chest: "", arm: "", leg: "" });
+      setEditingMeasurementId(null);
+    }
   };
 
-  const fillLatestMeasurementForm = () => {
-    if (!latestMeasurement) return;
+  const editMeasurement = (entry) => {
+    if (!entry) return;
 
     setMeasurementForm({
-      waist: latestMeasurement.waist ? String(latestMeasurement.waist) : "",
-      hips: latestMeasurement.hips ? String(latestMeasurement.hips) : "",
-      chest: latestMeasurement.chest ? String(latestMeasurement.chest) : "",
-      arm: latestMeasurement.arm ? String(latestMeasurement.arm) : "",
-      leg: latestMeasurement.leg ? String(latestMeasurement.leg) : "",
+      waist: entry.waist ? String(entry.waist) : "",
+      hips: entry.hips ? String(entry.hips) : "",
+      chest: entry.chest ? String(entry.chest) : "",
+      arm: entry.arm ? String(entry.arm) : "",
+      leg: entry.leg ? String(entry.leg) : "",
     });
+    setEditingMeasurementId(entry.id);
+  };
+
+  const cancelMeasurementEdit = () => {
+    setMeasurementForm({ waist: "", hips: "", chest: "", arm: "", leg: "" });
+    setEditingMeasurementId(null);
   };
 
   const handleBodyPhotoUpload = async (event) => {
@@ -6109,10 +6136,10 @@ export default function FitnessHabitsApp() {
                     {latestMeasurement && (
                       <button
                         type="button"
-                        onClick={fillLatestMeasurementForm}
+                        onClick={() => editMeasurement(latestMeasurement)}
                         className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15"
                       >
-                        {"\u0412\u043d\u0435\u0441\u0442\u0438 \u043e\u0441\u0442\u0430\u043d\u043d\u0456"}
+                        {"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438 \u043e\u0441\u0442\u0430\u043d\u0456"}
                       </button>
                     )}
                   </div>
@@ -6171,14 +6198,25 @@ export default function FitnessHabitsApp() {
                         ))}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={saveMeasurements}
-                        disabled={!MEASUREMENT_FIELDS.some(([key]) => Number(measurementForm[key]) > 0)}
-                        className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-3 font-black text-white shadow-lg shadow-pink-500/20 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-white/45"
-                      >
-                        {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u0430\u043c\u0456\u0440\u0438"}
-                      </button>
+                      <div className={`mt-4 grid gap-2 ${editingMeasurementId ? "grid-cols-2" : ""}`}>
+                        <button
+                          type="button"
+                          onClick={saveMeasurements}
+                          disabled={!MEASUREMENT_FIELDS.some(([key]) => Number(measurementForm[key]) > 0)}
+                          className="w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-3 font-black text-white shadow-lg shadow-pink-500/20 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-white/45"
+                        >
+                          {editingMeasurementId ? "Зберегти зміни" : "Зберегти заміри"}
+                        </button>
+                        {editingMeasurementId && (
+                          <button
+                            type="button"
+                            onClick={cancelMeasurementEdit}
+                            className="rounded-2xl bg-white/10 p-3 font-black text-white"
+                          >
+                            Скасувати
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.055] p-4">
@@ -6277,13 +6315,22 @@ export default function FitnessHabitsApp() {
                               {MEASUREMENT_FIELDS.map(([key, label]) => (
                                 <div key={key} className="min-w-0">
                                   <span className="block text-[11px] text-white/35">{label}</span>
-                                  <span className="font-bold text-white">{entry[key] || "-"}{entry[key] ? " ??" : ""}</span>
+                                  <span className="font-bold text-white">{entry[key] || "-"}{entry[key] ? " см" : ""}</span>
                                 </div>
                               ))}
                             </div>
-                            <button type="button" onClick={() => removeMeasurement(entry.id)} className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-500/25">
-                              {"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438"}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => editMeasurement(entry)}
+                                className="rounded-xl bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/15"
+                              >
+                                Редагувати
+                              </button>
+                              <button type="button" onClick={() => removeMeasurement(entry.id)} className="rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-500/25">
+                                {"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438"}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
