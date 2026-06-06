@@ -31,6 +31,8 @@ export default function WaterTrackerCard({
   waterProgress,
   waterDailyLog = {},
   onUpdateWater,
+  onUpdateWaterEntry,
+  onDeleteWaterEntry,
 }) {
   const todayKey = getLocalDateKey();
   const waterHistory = getLastWaterDates(7).map((dateKey) => {
@@ -49,6 +51,9 @@ export default function WaterTrackerCard({
     { amount: 0, dateKey: "" }
   );
   const maxChartMl = Math.max(waterGoal, bestDay.amount, 2000);
+  const loggedWaterDays = [...waterHistory]
+    .filter((item) => item.amount > 0)
+    .reverse();
 
   return (
     <section className="glow-card p-5">
@@ -157,6 +162,57 @@ export default function WaterTrackerCard({
             );
           })}
         </div>
+
+        {loggedWaterDays.length > 0 && (
+          <div className="mt-5 rounded-3xl bg-black/15 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h5 className="font-black text-white">Історія води</h5>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/50">
+                {loggedWaterDays.length} дн.
+              </span>
+            </div>
+            <div className="space-y-2">
+              {loggedWaterDays.map((entry) => (
+                <div
+                  key={entry.dateKey}
+                  className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/5 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-bold text-white">{formatWaterDate(entry.dateKey)}</p>
+                    <p className="text-sm font-black text-cyan-100">{entry.amount} мл</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateWaterEntry?.(entry.dateKey, -250)}
+                      className="grid h-9 min-w-9 place-items-center rounded-xl bg-white/10 px-2 font-black text-white"
+                      aria-label={`Зменшити воду за ${formatWaterDate(entry.dateKey)} на 250 мл`}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateWaterEntry?.(entry.dateKey, 250)}
+                      className="grid h-9 min-w-9 place-items-center rounded-xl bg-cyan-400/15 px-2 font-black text-cyan-100"
+                      aria-label={`Додати 250 мл за ${formatWaterDate(entry.dateKey)}`}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteWaterEntry?.(entry.dateKey)}
+                      className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-lg font-bold text-white/45 transition hover:border-rose-300/40 hover:bg-rose-500/15 hover:text-rose-100"
+                      aria-label={`Видалити запис води за ${formatWaterDate(entry.dateKey)}`}
+                      title="Видалити запис"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

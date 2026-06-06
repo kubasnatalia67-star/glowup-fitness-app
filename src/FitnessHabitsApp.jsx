@@ -3112,6 +3112,28 @@ export default function FitnessHabitsApp() {
     setWaterGlasses(formatOneDecimal(next / 250));
   };
 
+  const updateWaterHistoryEntry = (dateKey, deltaMl) => {
+    setWaterDailyLog((log) => {
+      const next = Math.max(0, (Number(log[dateKey]) || 0) + deltaMl);
+      return { ...log, [dateKey]: next };
+    });
+
+    if (dateKey === todayWaterKey) {
+      const next = Math.max(0, waterConsumedMl + deltaMl);
+      setWaterGlasses(formatOneDecimal(next / 250));
+    }
+  };
+
+  const removeWaterHistoryEntry = (dateKey) => {
+    setWaterDailyLog((log) =>
+      Object.fromEntries(Object.entries(log).filter(([entryDate]) => entryDate !== dateKey))
+    );
+
+    if (dateKey === todayWaterKey) {
+      setWaterGlasses(0);
+    }
+  };
+
   const updateSleepEntry = (field, value) => {
     setSleepDailyLog((log) => ({
       ...log,
@@ -8083,6 +8105,8 @@ export default function FitnessHabitsApp() {
                 waterProgress={waterProgress}
                 waterDailyLog={waterDailyLog}
                 onUpdateWater={updateWaterAmount}
+                onUpdateWaterEntry={updateWaterHistoryEntry}
+                onDeleteWaterEntry={removeWaterHistoryEntry}
               />
             </div>
 
