@@ -3,9 +3,12 @@ import { getAndroidApiHint, getApiUrl } from "./apiConfigService.js";
 
 const DEBUG_PREFIX = "[GlowUp Body Analysis]";
 
-export async function analyzeBodyImage({ image, profile }) {
-  if (shouldUseNativeAndroidHttp(image)) {
-    return analyzeBodyImageWithNativeHttp({ image, profile });
+export async function analyzeBodyImage({ image, images = {}, profile, language = "uk" }) {
+  const normalizedImages = normalizeBodyImages(images, image);
+  const imageCount = Object.values(normalizedImages).filter(Boolean).length;
+
+  if (shouldUseNativeAndroidHttp(image) || imageCount > 1) {
+    return analyzeBodyImageWithNativeHttp({ image, images: normalizedImages, profile, language });
   }
 
   const imageFile = await normalizeImageToFile(image);
@@ -14,6 +17,7 @@ export async function analyzeBodyImage({ image, profile }) {
 
   formData.append("image", imageFile, imageFile.name || "body-photo.jpg");
   formData.append("profile", JSON.stringify(profile || {}));
+  formData.append("language", language);
 
   console.log(`${DEBUG_PREFIX} FormData before upload`, {
     apiUrl,
@@ -53,12 +57,16 @@ export async function analyzeBodyImage({ image, profile }) {
   return result;
 }
 
-async function analyzeBodyImageWithNativeHttp({ image, profile }) {
+async function analyzeBodyImageWithNativeHttp({ image, images = {}, profile, language = "uk" }) {
   const apiUrl = getBodyAnalysisApiUrl();
+  const normalizedImages = normalizeBodyImages(images, image);
 
   console.log(`${DEBUG_PREFIX} native HTTP request`, {
     apiUrl,
     image: describeImage(image),
+    angles: Object.entries(normalizedImages)
+      .filter(([, value]) => Boolean(value))
+      .map(([angle, value]) => ({ angle, approxBytes: estimateDataUrlBytes(value) })),
     approxBytes: estimateDataUrlBytes(image),
     profile,
   });
@@ -72,7 +80,9 @@ async function analyzeBodyImageWithNativeHttp({ image, profile }) {
       },
       data: {
         image,
+        images: normalizedImages,
         profile: profile || {},
+        language,
       },
       responseType: "json",
     });
@@ -96,6 +106,15 @@ async function analyzeBodyImageWithNativeHttp({ image, profile }) {
       `Не вдалося підключитися до /api/analyze-body: ${error.message}. ${getAndroidApiHint()}`
     );
   }
+}
+
+function normalizeBodyImages(images, fallbackImage) {
+  const source = images && typeof images === "object" ? images : {};
+  return {
+    front: source.front || fallbackImage || "",
+    side: source.side || "",
+    back: source.back || "",
+  };
 }
 
 function getBodyAnalysisApiUrl() {

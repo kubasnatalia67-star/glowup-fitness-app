@@ -1030,7 +1030,16 @@ export default function FitnessHabitsApp() {
   );
   const [showNutritionGoalsEditor, setShowNutritionGoalsEditor] = useState(false);
   const [bodyPhoto, setBodyPhoto] = useState("");
+  const [bodyPhotos, setBodyPhotos] = useState(() => ({
+    front: "",
+    side: "",
+    back: "",
+    ...readJson("bodyAnalysisPhotos", {}),
+  }));
   const [bodyAnalysis, setBodyAnalysis] = useState(null);
+  const [bodyAnalysisHistory, setBodyAnalysisHistory] = useState(() =>
+    readJson("bodyAnalysisHistory", [])
+  );
   const [bodyAnalysisLoading, setBodyAnalysisLoading] = useState(false);
   const [bodyAnalysisError, setBodyAnalysisError] = useState("");
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState(0);
@@ -2249,6 +2258,25 @@ export default function FitnessHabitsApp() {
   }, [cycleHistory]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(
+        "bodyAnalysisPhotos",
+        JSON.stringify({
+          front: keepLocalPhoto(bodyPhotos.front),
+          side: keepLocalPhoto(bodyPhotos.side),
+          back: keepLocalPhoto(bodyPhotos.back),
+        })
+      );
+    } catch (error) {
+      console.warn("[GlowUp Body Analysis] photos were not persisted", error);
+    }
+  }, [bodyPhotos]);
+
+  useEffect(() => {
+    localStorage.setItem("bodyAnalysisHistory", JSON.stringify(bodyAnalysisHistory));
+  }, [bodyAnalysisHistory]);
+
+  useEffect(() => {
     localStorage.setItem("userProfile", JSON.stringify(profile));
   }, [profile]);
 
@@ -3351,18 +3379,30 @@ export default function FitnessHabitsApp() {
     setEditingMeasurementId(null);
   };
 
-  const handleBodyPhotoUpload = async (event) => {
+  const handleBodyPhotoUpload = async (event, angle = "front") => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
       const image = await compressImageFile(file);
-      setBodyPhoto(image);
+      setBodyPhotos((photos) => ({ ...photos, [angle]: image }));
+      if (angle === "front") setBodyPhoto(image);
       setBodyAnalysis(null);
       setBodyAnalysisError("");
     } finally {
       event.target.value = "";
     }
+  };
+
+  const removeBodyPhoto = (angle) => {
+    setBodyPhotos((photos) => ({ ...photos, [angle]: "" }));
+    if (angle === "front") setBodyPhoto("");
+    setBodyAnalysis(null);
+    setBodyAnalysisError("");
+  };
+
+  const removeBodyAnalysisHistoryEntry = (id) => {
+    setBodyAnalysisHistory((items) => items.filter((item) => item.id !== id));
   };
 
   const handleProgressPhotoUpload = async (event, type) => {
@@ -3407,7 +3447,13 @@ export default function FitnessHabitsApp() {
   };
 
   const analyzeBodyPhoto = async () => {
-    if (!bodyPhoto) return;
+    const selectedBodyPhotos = {
+      front: bodyPhotos.front || bodyPhoto,
+      side: bodyPhotos.side,
+      back: bodyPhotos.back,
+    };
+    const availablePhotos = Object.values(selectedBodyPhotos).filter(Boolean);
+    if (!availablePhotos.length) return;
 
     if (!profile.gender) {
       setShowProfile(true);
@@ -3419,11 +3465,29 @@ export default function FitnessHabitsApp() {
 
     try {
       const result = await analyzeBodyImage({
-        image: bodyPhoto,
+        image: selectedBodyPhotos.front || availablePhotos[0],
+        images: selectedBodyPhotos,
         profile,
+        language: appLanguage,
       });
 
       setBodyAnalysis(result);
+      setBodyAnalysisHistory((items) => [
+        {
+          id: `body-analysis-${Date.now()}`,
+          date: getLocalDateKey(),
+          createdAt: new Date().toISOString(),
+          views: Object.entries(selectedBodyPhotos)
+            .filter(([, photo]) => Boolean(photo))
+            .map(([angle]) => angle),
+          bodyScore: Number(result.bodyScore) || 0,
+          visual: String(result.visual || ""),
+          posture: String(result.posture || ""),
+          recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
+          source: result.source || "openai",
+        },
+        ...items,
+      ].slice(0, 12));
       setCharlieMessages((messages) => [
         ...messages,
         {
@@ -4715,7 +4779,11 @@ export default function FitnessHabitsApp() {
     setWaterGlasses(onboardingPlan.water);
     setSteps(0);
     setStepsSourceMessage("План кроків створено. Фактичні кроки підтягнуться з Android або їх можна ввести вручну.");
-    if (onboardingData.bodyPhoto) setBodyPhoto(keepLocalPhoto(onboardingData.bodyPhoto));
+    if (onboardingData.bodyPhoto) {
+      const onboardingBodyPhoto = keepLocalPhoto(onboardingData.bodyPhoto);
+      setBodyPhoto(onboardingBodyPhoto);
+      setBodyPhotos((photos) => ({ ...photos, front: photos.front || onboardingBodyPhoto }));
+    }
 
     localStorage.setItem("userProfile", JSON.stringify(nextProfile));
     localStorage.setItem(
@@ -6672,34 +6740,98 @@ export default function FitnessHabitsApp() {
                       )}
                     </div>
 
-                    <label className="block cursor-pointer rounded-2xl border border-dashed border-pink-400/40 bg-white/5 p-4 text-center transition hover:bg-white/10">
-                      <span className="font-bold">Завантажити фото тіла</span>
-                      <span className="mt-1 block text-sm text-white/50">
-                        JPG або PNG, бажано фото у повний зріст
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleBodyPhotoUpload}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-white">Фото з трьох сторін</p>
+                          <p className="mt-1 text-xs leading-relaxed text-white/50">
+                            Стань у повний зріст, тримай камеру на однаковій висоті та використовуй те саме освітлення.
+                          </p>
+                        </div>
+                        <span className="rounded-2xl bg-pink-500/15 px-3 py-2 text-xs font-black text-pink-100">
+                          {Object.values({ ...bodyPhotos, front: bodyPhotos.front || bodyPhoto }).filter(Boolean).length}/3
+                        </span>
+                      </div>
 
-                    {bodyPhoto && (
-                      <img
-                        src={bodyPhoto}
-                        alt="Фото тіла"
-                        className="mt-4 max-h-[420px] w-full rounded-2xl object-cover"
-                      />
-                    )}
+                      <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-3">
+                        {[
+                          ["front", "Спереду", "Руки вільно вздовж тіла"],
+                          ["side", "Збоку", "Стань боком, дивись прямо"],
+                          ["back", "Зі спини", "Плечі розслаблені"],
+                        ].map(([angle, label, hint]) => {
+                          const photo = angle === "front" ? bodyPhotos.front || bodyPhoto : bodyPhotos[angle];
+
+                          return (
+                            <div key={angle} className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                              {photo ? (
+                                <div className="relative aspect-[3/4] overflow-hidden">
+                                  <img
+                                    src={photo}
+                                    alt={`Фото тіла: ${label}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeBodyPhoto(angle)}
+                                    aria-label={`Видалити фото ${label.toLowerCase()}`}
+                                    className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-xl bg-black/70 text-xl font-bold text-white"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="grid aspect-[3/4] cursor-pointer place-items-center p-3 text-center transition hover:bg-white/5">
+                                  <span>
+                                    <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-pink-300/30 bg-pink-500/10 text-2xl">
+                                      +
+                                    </span>
+                                    <span className="mt-3 block font-black text-white">{label}</span>
+                                    <span className="mt-1 block text-xs leading-relaxed text-white/45">{hint}</span>
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={(event) => handleBodyPhotoUpload(event, angle)}
+                                    className="hidden"
+                                  />
+                                </label>
+                              )}
+                              {photo && (
+                                <label className="block cursor-pointer px-3 py-3 text-center text-xs font-bold text-pink-200">
+                                  Замінити · {label}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={(event) => handleBodyPhotoUpload(event, angle)}
+                                    className="hidden"
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] text-white/45">
+                        <span>Одна відстань</span>
+                        <span>Одна поза</span>
+                        <span>Добре світло</span>
+                      </div>
+                    </div>
 
                     <button
                       type="button"
                       onClick={analyzeBodyPhoto}
-                      disabled={!bodyPhoto || !profile.gender || bodyAnalysisLoading}
+                      disabled={
+                        !Object.values({ ...bodyPhotos, front: bodyPhotos.front || bodyPhoto }).some(Boolean)
+                        || !profile.gender
+                        || bodyAnalysisLoading
+                      }
                       className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold disabled:cursor-not-allowed disabled:from-gray-600 disabled:to-gray-700"
                     >
-                      {bodyAnalysisLoading ? "Аналізую фото..." : "Проаналізувати фото"}
+                      {bodyAnalysisLoading ? "Аналізую ракурси..." : "Проаналізувати тіло"}
                     </button>
 
                     {bodyAnalysisError && (
@@ -6760,6 +6892,14 @@ export default function FitnessHabitsApp() {
                             </ul>
                           </section>
                         </div>
+
+                        <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-4 text-sm text-white/65">
+                          Проаналізовано ракурсів:{" "}
+                          <span className="font-black text-white">
+                            {Object.values({ ...bodyPhotos, front: bodyPhotos.front || bodyPhoto }).filter(Boolean).length}
+                          </span>
+                          . Результат орієнтовний і призначений для відстеження тренувального прогресу.
+                        </div>
                       </div>
                     ) : (
                       <div className="flex h-full min-h-[360px] flex-col justify-center rounded-2xl bg-white/5 p-6 text-center">
@@ -6773,6 +6913,52 @@ export default function FitnessHabitsApp() {
                     )}
                   </div>
                 </div>
+
+                {bodyAnalysisHistory.length > 0 && (
+                  <section className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-pink-200/70">
+                          Історія фотоаналізів
+                        </p>
+                        <h3 className="mt-1 text-xl font-black">Зміни Body Score</h3>
+                      </div>
+                      <span className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white/55">
+                        {bodyAnalysisHistory.length}/12
+                      </span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {bodyAnalysisHistory.map((entry) => (
+                        <article key={entry.id} className="min-w-0 rounded-2xl bg-white/[0.055] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs text-white/45">{entry.date}</p>
+                              <p className="mt-1 text-3xl font-black text-pink-300">
+                                {entry.bodyScore}<span className="text-sm text-white/40">/100</span>
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeBodyAnalysisHistoryEntry(entry.id)}
+                              aria-label={`Видалити аналіз за ${entry.date}`}
+                              className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-lg font-bold text-white/45"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <p className="mt-3 text-xs font-bold text-cyan-100">
+                            Ракурсів: {Array.isArray(entry.views) ? entry.views.length : 1}
+                          </p>
+                          {entry.posture && (
+                            <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-white/60">
+                              {entry.posture}
+                            </p>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">

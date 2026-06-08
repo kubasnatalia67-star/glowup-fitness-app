@@ -282,6 +282,7 @@ async function readAnalyzeBodyBody(request, url) {
   const formData = await webRequest.formData();
   const imageFile = formData.get("image");
   const rawProfile = String(formData.get("profile") || "{}");
+  const language = String(formData.get("language") || "uk");
 
   if (!imageFile || typeof imageFile.arrayBuffer !== "function") {
     const error = new Error("Multipart body image file is missing.");
@@ -311,7 +312,7 @@ async function readAnalyzeBodyBody(request, url) {
     profile,
   });
 
-  return { image, profile };
+  return { image, profile, language };
 }
 
 async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } = {}) {
@@ -410,7 +411,7 @@ async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } =
   };
 }
 
-async function analyzeBodyWithOpenAI({ image, profile = {} } = {}) {
+async function analyzeBodyWithOpenAI({ image, images = {}, profile = {}, language = "uk" } = {}) {
   const apiKey = getOpenAiKey();
   if (!apiKey) {
     const error = new Error("OPENAI_API_KEY is missing.");
@@ -419,12 +420,34 @@ async function analyzeBodyWithOpenAI({ image, profile = {} } = {}) {
     throw error;
   }
 
-  if (!image || typeof image !== "string" || !image.startsWith("data:image/")) {
+  const bodyImages = {
+    front: images?.front || image || "",
+    side: images?.side || "",
+    back: images?.back || "",
+  };
+  const validImages = Object.entries(bodyImages).filter(
+    ([, value]) => typeof value === "string" && value.startsWith("data:image/")
+  );
+
+  if (!validImages.length) {
     const error = new Error("Body photo is missing.");
     error.statusCode = 400;
     error.publicMessage = "Body photo is missing.";
     throw error;
   }
+
+  const angleNames = {
+    front: "front view",
+    side: "side view",
+    back: "back view",
+  };
+  const imageContent = validImages.map(([angle, imageUrl]) => ({
+    type: "input_image",
+    image_url: imageUrl,
+    detail: "low",
+  }));
+  const availableAngles = validImages.map(([angle]) => angleNames[angle] || angle).join(", ");
+  const languageName = getLanguageName(language);
 
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -434,6 +457,9 @@ async function analyzeBodyWithOpenAI({ image, profile = {} } = {}) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      instructions:
+        `Answer only in ${languageName}. Translate every user-visible observation and recommendation to ${languageName}. ` +
+        "Keep JSON keys exactly as requested.",
       input: [
         {
           role: "user",
@@ -441,18 +467,17 @@ async function analyzeBodyWithOpenAI({ image, profile = {} } = {}) {
             {
               type: "input_text",
               text:
-                "Analyze this full-body fitness progress photo for posture and training focus. " +
+                `Analyze these full-body fitness progress photos together. Available views: ${availableAngles}. ` +
+                "Compare only visible posture, alignment, symmetry, and training focus across the supplied views. " +
                 "Do not diagnose disease, do not identify the person, and do not mention sensitive traits. " +
+                "Do not estimate body-fat percentage, weight, medical conditions, or attractiveness from images. " +
                 "Return only JSON with this exact shape: " +
                 '{"bodyScore":number,"visual":"short observation","posture":"short posture note","problems":["item"],"recommendations":["item"],"source":"openai"}. ' +
+                `Write visual, posture, problems, and recommendations only in ${languageName}. ` +
                 "bodyScore should be 0-100 and approximate. Give practical workout/posture suggestions. " +
                 `User profile JSON: ${JSON.stringify(profile || {})}`,
             },
-            {
-              type: "input_image",
-              image_url: image,
-              detail: "low",
-            },
+            ...imageContent,
           ],
         },
       ],
