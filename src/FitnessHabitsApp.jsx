@@ -960,6 +960,7 @@ export default function FitnessHabitsApp() {
   const [afterPhoto, setAfterPhoto] = useState(
     () => savedGlowUpData.afterPhoto || ""
   );
+  const [progressComparePercent, setProgressComparePercent] = useState(50);
   const [foodPhoto, setFoodPhoto] = useState(
     () => savedGlowUpData.foodPhoto || ""
   );
@@ -3444,6 +3445,11 @@ export default function FitnessHabitsApp() {
     } finally {
       event.target.value = "";
     }
+  };
+
+  const removeProgressPhoto = (type) => {
+    if (type === "before") setBeforePhoto("");
+    if (type === "after") setAfterPhoto("");
   };
 
   const analyzeBodyPhoto = async () => {
@@ -6959,6 +6965,109 @@ export default function FitnessHabitsApp() {
                     </div>
                   </section>
                 )}
+
+                <section className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200/70">
+                        Фото прогресу
+                      </p>
+                      <h3 className="mt-1 text-xl font-black text-white">Порівняння до / після</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-white/55">
+                        Додай два фото в однаковому світлі й позі, щоб бачити реальні зміни без здогадок.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white/55">
+                      {[beforePhoto, afterPhoto].filter(Boolean).length}/2 фото
+                    </span>
+                  </div>
+
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                    {[
+                      ["before", "Фото до", beforePhoto],
+                      ["after", "Фото після", afterPhoto],
+                    ].map(([type, label, photo]) => (
+                      <div key={type} className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-black text-white">{label}</p>
+                          {photo && (
+                            <button
+                              type="button"
+                              onClick={() => removeProgressPhoto(type)}
+                              className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-lg font-bold text-white/45"
+                              aria-label={`Видалити ${label.toLowerCase()}`}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                        {photo ? (
+                          <img
+                            src={photo}
+                            alt={label}
+                            className="mt-3 aspect-[3/4] w-full rounded-2xl object-cover"
+                          />
+                        ) : (
+                          <div className="mt-3 grid aspect-[3/4] place-items-center rounded-2xl border border-dashed border-white/15 bg-black/20 p-4 text-center text-sm text-white/45">
+                            Додай фото у повний зріст
+                          </div>
+                        )}
+                        <label className="mt-3 block cursor-pointer rounded-xl bg-white/10 px-3 py-3 text-center text-sm font-black text-white transition hover:bg-white/15">
+                          {photo ? "Замінити" : "Завантажити"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => handleProgressPhotoUpload(event, type)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+
+                  {beforePhoto && afterPhoto ? (
+                    <div className="mt-5 rounded-3xl border border-cyan-300/15 bg-black/20 p-3">
+                      <div className="relative mx-auto aspect-[3/4] max-h-[520px] w-full max-w-md overflow-hidden rounded-2xl bg-black">
+                        <img
+                          src={beforePhoto}
+                          alt="Фото до"
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                        <img
+                          src={afterPhoto}
+                          alt="Фото після"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          style={{ clipPath: `inset(0 0 0 ${progressComparePercent}%)` }}
+                        />
+                        <div
+                          className="absolute inset-y-0 w-0.5 bg-white shadow-[0_0_18px_rgba(255,255,255,0.8)]"
+                          style={{ left: `${progressComparePercent}%` }}
+                        />
+                        <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-black text-white">
+                          До
+                        </div>
+                        <div className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-black text-white">
+                          Після
+                        </div>
+                      </div>
+                      <label className="mt-4 block text-sm font-bold text-white/60">
+                        Рухай межу порівняння
+                        <input
+                          type="range"
+                          min="5"
+                          max="95"
+                          value={progressComparePercent}
+                          onChange={(event) => setProgressComparePercent(Number(event.target.value))}
+                          className="mt-2 h-10 w-full accent-pink-500"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-2xl bg-white/[0.04] p-4 text-sm leading-relaxed text-white/55">
+                      Для слайдера потрібно два фото. Одне вже можна зберегти зараз, друге додаси пізніше після кількох тижнів прогресу.
+                    </p>
+                  )}
+                </section>
 
                 <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                   <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
