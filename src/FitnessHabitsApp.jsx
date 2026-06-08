@@ -972,6 +972,9 @@ export default function FitnessHabitsApp() {
   const [foodAnalysisLoading, setFoodAnalysisLoading] = useState(false);
   const [foodAnalysisError, setFoodAnalysisError] = useState("");
   const [foodDiary, setFoodDiary] = useState(() => readJson("foodDiary", []));
+  const [editingFoodDiaryId, setEditingFoodDiaryId] = useState(null);
+  const [foodDiaryEditForm, setFoodDiaryEditForm] = useState(null);
+  const [foodDiaryEditBaseline, setFoodDiaryEditBaseline] = useState(null);
   const [manualFood, setManualFood] = useState({
     name: "",
     meal: "сніданок",
@@ -3209,6 +3212,84 @@ export default function FitnessHabitsApp() {
 
   const removeFoodDiaryEntry = (id) => {
     setFoodDiary((items) => items.filter((item) => item.id !== id));
+    if (editingFoodDiaryId === id) {
+      setEditingFoodDiaryId(null);
+      setFoodDiaryEditForm(null);
+      setFoodDiaryEditBaseline(null);
+    }
+  };
+
+  const startFoodDiaryEdit = (item) => {
+    const grams = Number(item.grams || item.amount) || 0;
+    const form = {
+      name: String(item.name || ""),
+      meal: String(item.meal || ""),
+      grams: grams ? String(grams) : "",
+      calories: String(Number(item.calories) || 0),
+      protein: String(Number(item.protein) || 0),
+      fat: String(Number(item.fat) || 0),
+      carbs: String(Number(item.carbs) || 0),
+    };
+
+    setEditingFoodDiaryId(item.id);
+    setFoodDiaryEditForm(form);
+    setFoodDiaryEditBaseline({
+      grams,
+      calories: Number(item.calories) || 0,
+      protein: Number(item.protein) || 0,
+      fat: Number(item.fat) || 0,
+      carbs: Number(item.carbs) || 0,
+      proportional: item.source === "barcode" && grams > 0,
+    });
+  };
+
+  const updateFoodDiaryEditGrams = (value) => {
+    setFoodDiaryEditForm((form) => {
+      if (!form) return form;
+      const nextForm = { ...form, grams: value };
+      const grams = Number(value) || 0;
+
+      if (foodDiaryEditBaseline?.proportional && foodDiaryEditBaseline.grams > 0 && grams > 0) {
+        const ratio = grams / foodDiaryEditBaseline.grams;
+        nextForm.calories = String(Math.round(foodDiaryEditBaseline.calories * ratio));
+        nextForm.protein = String(formatOneDecimal(foodDiaryEditBaseline.protein * ratio));
+        nextForm.fat = String(formatOneDecimal(foodDiaryEditBaseline.fat * ratio));
+        nextForm.carbs = String(formatOneDecimal(foodDiaryEditBaseline.carbs * ratio));
+      }
+
+      return nextForm;
+    });
+  };
+
+  const cancelFoodDiaryEdit = () => {
+    setEditingFoodDiaryId(null);
+    setFoodDiaryEditForm(null);
+    setFoodDiaryEditBaseline(null);
+  };
+
+  const saveFoodDiaryEdit = () => {
+    if (!editingFoodDiaryId || !foodDiaryEditForm?.name.trim()) return;
+
+    const grams = Math.max(0, Number(foodDiaryEditForm.grams) || 0);
+    setFoodDiary((items) =>
+      items.map((item) =>
+        item.id === editingFoodDiaryId
+          ? {
+              ...item,
+              name: foodDiaryEditForm.name.trim(),
+              meal: foodDiaryEditForm.meal,
+              grams,
+              amount: grams,
+              calories: Math.max(0, Number(foodDiaryEditForm.calories) || 0),
+              protein: Math.max(0, Number(foodDiaryEditForm.protein) || 0),
+              fat: Math.max(0, Number(foodDiaryEditForm.fat) || 0),
+              carbs: Math.max(0, Number(foodDiaryEditForm.carbs) || 0),
+              updatedAt: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+    cancelFoodDiaryEdit();
   };
 
   const saveMeasurements = () => {
@@ -7476,6 +7557,100 @@ export default function FitnessHabitsApp() {
                                 <p className="mt-2 text-xs font-bold text-pink-200">
                                   Barcode: {item.barcode}
                                 </p>
+                              )}
+                              {editingFoodDiaryId === item.id && foodDiaryEditForm ? (
+                                <div className="mt-4 rounded-2xl border border-pink-300/20 bg-black/20 p-3">
+                                  <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                                    <label className="min-w-0 text-xs font-bold text-white/55 sm:col-span-2">
+                                      Назва
+                                      <input
+                                        type="text"
+                                        value={foodDiaryEditForm.name}
+                                        onChange={(event) =>
+                                          setFoodDiaryEditForm((form) => ({ ...form, name: event.target.value }))
+                                        }
+                                        className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none"
+                                      />
+                                    </label>
+                                    <label className="min-w-0 text-xs font-bold text-white/55">
+                                      Прийом їжі
+                                      <select
+                                        value={foodDiaryEditForm.meal}
+                                        onChange={(event) =>
+                                          setFoodDiaryEditForm((form) => ({ ...form, meal: event.target.value }))
+                                        }
+                                        className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-[#24203f] p-3 text-white outline-none"
+                                      >
+                                        <option value="">Не вказано</option>
+                                        <option value="сніданок">Сніданок</option>
+                                        <option value="обід">Обід</option>
+                                        <option value="вечеря">Вечеря</option>
+                                        <option value="перекус">Перекус</option>
+                                      </select>
+                                    </label>
+                                    <label className="min-w-0 text-xs font-bold text-white/55">
+                                      Грами
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        inputMode="decimal"
+                                        value={foodDiaryEditForm.grams}
+                                        onChange={(event) => updateFoodDiaryEditGrams(event.target.value)}
+                                        className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none"
+                                      />
+                                    </label>
+                                    {[
+                                      ["calories", "Калорії"],
+                                      ["protein", "Білки"],
+                                      ["fat", "Жири"],
+                                      ["carbs", "Вуглеводи"],
+                                    ].map(([key, label]) => (
+                                      <label key={key} className="min-w-0 text-xs font-bold text-white/55">
+                                        {label}
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          inputMode="decimal"
+                                          value={foodDiaryEditForm[key]}
+                                          onChange={(event) =>
+                                            setFoodDiaryEditForm((form) => ({ ...form, [key]: event.target.value }))
+                                          }
+                                          className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                  {foodDiaryEditBaseline?.proportional && (
+                                    <p className="mt-3 text-xs text-cyan-100/70">
+                                      Для продукту зі штрихкоду БЖВ автоматично змінюються разом із грамами.
+                                    </p>
+                                  )}
+                                  <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={saveFoodDiaryEdit}
+                                      disabled={!foodDiaryEditForm.name.trim()}
+                                      className="rounded-xl bg-gradient-to-r from-pink-500 to-orange-400 px-3 py-3 text-sm font-black text-white disabled:opacity-50"
+                                    >
+                                      Зберегти
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelFoodDiaryEdit}
+                                      className="rounded-xl bg-white/10 px-3 py-3 text-sm font-black text-white"
+                                    >
+                                      Скасувати
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => startFoodDiaryEdit(item)}
+                                  className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white transition hover:bg-white/15"
+                                >
+                                  Редагувати
+                                </button>
                               )}
                             </div>
                           </div>
