@@ -5714,76 +5714,128 @@ export default function FitnessHabitsApp() {
                 </button>
               </div>
 
-              <input
-                value={profile.name}
-                onChange={(event) => updateProfileField("name", event.target.value)}
-                placeholder="Ім'я"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
+              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Основне</h3>
+                <label className="mt-3 block text-xs font-bold text-white/50">
+                  Ім'я
+                  <input
+                    value={profile.name}
+                    onChange={(event) => updateProfileField("name", event.target.value)}
+                    placeholder="Як до тебе звертатися"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                  />
+                </label>
 
-              <select
-                value={profile.gender || ""}
-                onChange={(event) => updateProfileField("gender", event.target.value)}
-                className="mb-3 w-full rounded-xl border border-white/10 bg-[#2a2542] p-3 text-white outline-none focus:border-pink-400"
-              >
-                <option className="bg-[#15122d] text-white" value="">Оберіть стать</option>
-                <option className="bg-[#15122d] text-white" value="female">Жінка</option>
-                <option className="bg-[#15122d] text-white" value="male">Чоловік</option>
-              </select>
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-bold text-white/50">Стать</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      ["female", "Жінка", "Жіноча програма"],
+                      ["male", "Чоловік", "Чоловіча програма"],
+                    ].map(([value, label, description]) => {
+                      const selected = profile.gender === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => updateProfileField("gender", value)}
+                          className={`min-w-0 rounded-2xl border p-3 text-left transition ${
+                            selected
+                              ? "border-pink-300 bg-gradient-to-r from-pink-500/30 to-orange-400/20 text-white shadow-lg shadow-pink-950/20"
+                              : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
+                          }`}
+                        >
+                          <span className="block font-bold">{label}</span>
+                          <span className="mt-1 block text-xs font-normal text-white/45">
+                            {description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
 
-              <input
-                value={profile.age}
-                onChange={(event) => updateProfileField("age", event.target.value)}
-                placeholder="Вік"
-                type="number"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
+              <section className="mt-3 rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Параметри тіла</h3>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {[
+                    ["age", "Вік", "22", "1"],
+                    ["height", "Зріст, см", "165", "1"],
+                    ["startWeight", "Стартова вага", "65", "0.1"],
+                    ["weight", "Вага зараз", "62", "0.1"],
+                  ].map(([field, label, placeholder, step]) => (
+                    <label key={field} className="min-w-0 text-xs font-bold text-white/50">
+                      {label}
+                      <input
+                        value={profile[field] || ""}
+                        onChange={(event) => updateProfileField(field, event.target.value)}
+                        placeholder={placeholder}
+                        type="number"
+                        step={step}
+                        className="mt-2 w-full min-w-0 rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/25 focus:border-pink-400"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </section>
 
-              <input
-                value={profile.height}
-                onChange={(event) => updateProfileField("height", event.target.value)}
-                placeholder="Зріст, см"
-                type="number"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
+              <section className="mt-3 rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Моя ціль</h3>
+                <label className="mt-3 block text-xs font-bold text-white/50">
+                  Бажана вага, кг
+                  <input
+                    value={profile.goalWeight}
+                    onChange={(event) => updateProfileField("goalWeight", event.target.value)}
+                    placeholder="Наприклад: 55"
+                    type="number"
+                    step="0.1"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                  />
+                </label>
 
-              <input
-                value={profile.startWeight || ""}
-                onChange={(event) => updateProfileField("startWeight", event.target.value)}
-                placeholder="Стартова вага, кг"
-                type="number"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
+                <div className="mt-4 grid gap-2">
+                  {[
+                    ["Схуднути", "Зменшити вагу поступово"],
+                    ["Підтягнути тіло", "Більше тонусу й сили"],
+                    ["Набрати м'язи", "Розвивати силу та м'язи"],
+                    ["Виправити поставу", "Спина, мобільність і баланс"],
+                    ["Покращити здоров'я", "Сон, рух і корисні звички"],
+                  ].map(([goal, description]) => {
+                    const selected = profile.goal === goal;
+                    return (
+                      <button
+                        key={goal}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => updateProfileField("goal", goal)}
+                        className={`flex min-w-0 items-center justify-between gap-3 rounded-2xl border p-3 text-left transition ${
+                          selected
+                            ? "border-pink-300 bg-gradient-to-r from-pink-500/30 to-orange-400/20 text-white"
+                            : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-bold">{goal}</span>
+                          <span className="mt-1 block text-xs font-normal text-white/45">
+                            {description}
+                          </span>
+                        </span>
+                        <span
+                          className={`h-5 w-5 shrink-0 rounded-full border-2 ${
+                            selected
+                              ? "border-pink-300 bg-pink-400 shadow-[inset_0_0_0_4px_#15122d]"
+                              : "border-white/25"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
 
-              <input
-                value={profile.weight}
-                onChange={(event) => updateProfileField("weight", event.target.value)}
-                placeholder="Вага зараз, кг"
-                type="number"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
-
-              <input
-                value={profile.goalWeight}
-                onChange={(event) => updateProfileField("goalWeight", event.target.value)}
-                placeholder="Бажана вага, кг"
-                type="number"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none placeholder:text-white/45 focus:border-pink-400"
-              />
-
-              <select
-                value={profile.goal}
-                onChange={(event) => updateProfileField("goal", event.target.value)}
-                className="mb-3 w-full rounded-xl border border-white/10 bg-[#2a2542] p-3 text-white outline-none focus:border-pink-400"
-              >
-                <option className="bg-[#15122d] text-white">Схуднути</option>
-                <option className="bg-[#15122d] text-white">Підтягнути тіло</option>
-                <option className="bg-[#15122d] text-white">Набрати м'язи</option>
-                <option className="bg-[#15122d] text-white">Виправити поставу</option>
-                <option className="bg-[#15122d] text-white">Покращити здоров'я</option>
-              </select>
-
-              <div className="mb-4 rounded-2xl border border-purple-400/20 bg-white/5 p-4 text-sm">
+              <div className="my-3 rounded-2xl border border-purple-400/20 bg-white/5 p-4 text-sm">
                 <p className="font-bold text-pink-200">Після збереження</p>
                 <p className="mt-1 leading-relaxed text-white/70">
                   {personalPlan.hasProfileData
