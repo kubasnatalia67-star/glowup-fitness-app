@@ -76,6 +76,7 @@ import {
 } from "./services/notificationService.js";
 import {
   getNativeTtsAvailability,
+  getNativeTtsVoices,
   hasNativeTts,
   speakNativeText,
   stopNativeSpeech,
@@ -914,6 +915,17 @@ export default function FitnessHabitsApp() {
   const [voicePitch, setVoicePitch] = useState(
     () => Number(localStorage.getItem("voicePitch")) || CHARLIE_VOICE_PRESETS.femaleCoach.pitch
   );
+  const [voiceVolume, setVoiceVolume] = useState(
+    () => Number(localStorage.getItem("voiceVolume")) || 1
+  );
+  const [selectedVoiceId, setSelectedVoiceId] = useState(
+    () => localStorage.getItem("charlieVoiceId") || ""
+  );
+  const [availableCharlieVoices, setAvailableCharlieVoices] = useState([]);
+  const [voiceDiagnostics, setVoiceDiagnostics] = useState({
+    status: "idle",
+    detail: "",
+  });
   const [voiceMessage, setVoiceMessage] = useState("");
   const [measurements, setMeasurements] = useState(() => readJson("bodyMeasurements", []));
   const [measurementMetric, setMeasurementMetric] = useState("waist");
@@ -3534,10 +3546,23 @@ export default function FitnessHabitsApp() {
   const getSpeechLanguage = () =>
     SPEECH_LANGUAGE_CODES[appLanguage] || `${appLanguage}-${appLanguage.toUpperCase()}`;
 
+  const normalizeCharlieSpeech = (text) =>
+    String(text || "")
+      .replace(/[\r\n]+/g, ". ")
+      .replace(/\.{2,}/g, ".")
+      .replace(/\s*[-•]\s*/g, ", ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const pickCharlieVoice = (languageCode) => {
     if (!window.speechSynthesis) return null;
 
     const voices = window.speechSynthesis.getVoices();
+    const selectedVoice = voices.find(
+      (voice) => voice.voiceURI === selectedVoiceId || voice.name === selectedVoiceId
+    );
+    if (selectedVoice) return selectedVoice;
+
     const languagePrefix = languageCode.split("-")[0].toLowerCase();
     const languageVoices = voices.filter((voice) =>
       voice.lang.toLowerCase().startsWith(languagePrefix)
@@ -3561,10 +3586,74 @@ export default function FitnessHabitsApp() {
     );
   };
 
+  const refreshCharlieVoices = async () => {
+    const languageCode = getSpeechLanguage();
+    const languagePrefix = languageCode.split("-")[0].toLowerCase();
+
+    try {
+      let voices = [];
+
+      if (hasNativeTts()) {
+        const result = await getNativeTtsVoices();
+        voices = (result?.voices || []).map((voice) => ({
+          id: voice.id || voice.name,
+          name: voice.name,
+          language: voice.language || "",
+          local: !voice.networkRequired,
+          quality: Number(voice.quality) || 0,
+        }));
+      } else if (window.speechSynthesis) {
+        voices = window.speechSynthesis.getVoices().map((voice) => ({
+          id: voice.voiceURI || voice.name,
+          name: voice.name,
+          language: voice.lang || "",
+          local: voice.localService,
+          quality: voice.default ? 500 : 0,
+        }));
+      } else {
+        setAvailableCharlieVoices([]);
+        setVoiceDiagnostics({
+          status: "unsupported",
+          detail: "unsupported browser: speechSynthesis unavailable",
+        });
+        return [];
+      }
+
+      const preferred = voices.filter((voice) =>
+        voice.language.toLowerCase().startsWith(languagePrefix)
+      );
+      const english = voices.filter((voice) =>
+        voice.language.toLowerCase().startsWith("en")
+      );
+      const candidates = (preferred.length ? preferred : english.length ? english : voices)
+        .sort((a, b) => Number(b.local) - Number(a.local) || b.quality - a.quality)
+        .slice(0, 16);
+
+      setAvailableCharlieVoices(candidates);
+      setVoiceDiagnostics({
+        status: candidates.length ? "ready" : "unavailable",
+        detail: candidates.length
+          ? `${candidates.length} voices available; preferred language: ${languageCode}`
+          : "voices unavailable",
+      });
+      return candidates;
+    } catch (error) {
+      console.error("[GlowUp Charlie TTS] voices unavailable", error);
+      setAvailableCharlieVoices([]);
+      setVoiceDiagnostics({
+        status: "error",
+        detail: error.message || "voices unavailable",
+      });
+      return [];
+    }
+  };
+
   const speak = async (text, { force = false } = {}) => {
     if (!text || (!voiceEnabled && !force)) return;
 
     const languageCode = getSpeechLanguage();
+    const speechText = normalizeCharlieSpeech(text);
+    setVoiceDiagnostics({ status: "starting", detail: "Starting speech..." });
 
     try {
       if (hasNativeTts()) {
@@ -3579,30 +3668,68 @@ export default function FitnessHabitsApp() {
           language: languageCode,
           rate: voiceRate,
           pitch: voicePitch,
+          volume: voiceVolume,
           preset: voicePreset,
+          voiceName: selectedVoiceId,
         });
         console.log("[GlowUp Charlie TTS] native speak result", result);
-        setVoiceMessage("\u0413\u043e\u043b\u043e\u0441 \u0427\u0430\u0440\u043b\u0456 \u043f\u0440\u0430\u0446\u044e\u0454.");
+        setVoiceDiagnostics({
+          status: "speaking",
+          detail: `Android TTS: ${result.voice || "automatic voice"} · ${result.language}`,
+        });
+        setVoiceMessage("Голос Чарлі працює.");
         return;
       }
 
       if (!window.speechSynthesis) {
-        setVoiceMessage("\u0426\u0435\u0439 \u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u043d\u0435 \u043f\u0456\u0434\u0442\u0440\u0438\u043c\u0443\u0454 \u0441\u0438\u043d\u0442\u0435\u0437 \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f.");
+        setVoiceDiagnostics({
+          status: "unsupported",
+          detail: "unsupported browser: speechSynthesis unavailable",
+        });
+        setVoiceMessage("Цей браузер не підтримує синтез мовлення.");
         return;
       }
 
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.resume();
+      const utterance = new SpeechSynthesisUtterance(speechText);
       utterance.lang = languageCode;
       const voice = pickCharlieVoice(languageCode);
       if (voice) utterance.voice = voice;
       utterance.rate = voiceRate;
       utterance.pitch = voicePitch;
+      utterance.volume = voiceVolume;
+      utterance.onstart = () => {
+        setVoiceDiagnostics({
+          status: "speaking",
+          detail: `Web voice: ${voice?.name || "automatic"} · ${voice?.lang || languageCode}`,
+        });
+      };
+      utterance.onend = () => {
+        setVoiceDiagnostics({
+          status: "ready",
+          detail: `Finished: ${voice?.name || "automatic voice"}`,
+        });
+      };
+      utterance.onerror = (event) => {
+        const reason = event.error || "speech blocked";
+        console.error("[GlowUp Charlie TTS] browser speech failed", reason);
+        setVoiceDiagnostics({ status: "error", detail: reason });
+        setVoiceMessage(
+          reason === "not-allowed"
+            ? "Speech blocked. Натисни «Test voice», щоб дозволити звук."
+            : `Голос не запустився: ${reason}.`
+        );
+      };
+      setVoiceMessage("Голос Чарлі запускається.");
       window.speechSynthesis.speak(utterance);
-      setVoiceMessage("\u0413\u043e\u043b\u043e\u0441 \u0427\u0430\u0440\u043b\u0456 \u043f\u0440\u0430\u0446\u044e\u0454.");
     } catch (error) {
-      console.error("Charlie TTS failed", error);
-      setVoiceMessage(error.message || "\u0423\u0432\u0456\u043c\u043a\u043d\u0438 \u0441\u0438\u043d\u0442\u0435\u0437 \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f \u0432 \u043d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f\u0445 Android.");
+      console.error("[GlowUp Charlie TTS] speech failed", error);
+      setVoiceDiagnostics({
+        status: "error",
+        detail: error.message || "speech failed",
+      });
+      setVoiceMessage(error.message || "Увімкни синтез мовлення в налаштуваннях Android.");
     }
   };
 
@@ -3962,10 +4089,39 @@ export default function FitnessHabitsApp() {
     localStorage.setItem("voicePitch", String(pitch));
   };
 
+  const setVoiceVolumeChoice = (volume) => {
+    setVoiceVolume(volume);
+    localStorage.setItem("voiceVolume", String(volume));
+  };
+
+  const setCharlieVoiceChoice = (voiceId) => {
+    setSelectedVoiceId(voiceId);
+    localStorage.setItem("charlieVoiceId", voiceId);
+    setVoiceMessage("");
+  };
+
   const testCharlieVoice = async () => {
     setVoiceMessage("");
-    await speak("\u041f\u0440\u0438\u0432\u0456\u0442, \u041d\u0430\u0442\u0430\u043b\u044f! \u042f \u0427\u0430\u0440\u043b\u0456, \u0442\u0432\u0456\u0439 GlowUp \u043f\u043e\u043c\u0456\u0447\u043d\u0438\u043a.", { force: true });
+    if (!availableCharlieVoices.length && hasNativeTts()) {
+      await refreshCharlieVoices();
+    } else if (!availableCharlieVoices.length) {
+      refreshCharlieVoices();
+    }
+    await speak("Привіт, Наталя! Я Чарлі, твій GlowUp помічник. Рухаймося до цілі разом!", { force: true });
   };
+
+  useEffect(() => {
+    refreshCharlieVoices();
+
+    if (!hasNativeTts() && window.speechSynthesis) {
+      const handleVoicesChanged = () => refreshCharlieVoices();
+      window.speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged);
+      return () =>
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoicesChanged);
+    }
+
+    return undefined;
+  }, [appLanguage]);
 
   const requestNotificationPermissionLegacy = () => {
     if (!("Notification" in window)) {
@@ -5645,13 +5801,60 @@ export default function FitnessHabitsApp() {
                       </button>
                     ))}
                   </div>
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-[#0b1022] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-white/80">Встановлений голос</p>
+                        <p className="text-xs text-white/40">
+                          Український має пріоритет, далі англійський.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={refreshCharlieVoices}
+                        className="shrink-0 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold text-white/70"
+                      >
+                        Оновити
+                      </button>
+                    </div>
+                    <div className="mt-3 grid max-h-44 gap-2 overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => setCharlieVoiceChoice("")}
+                        className={`rounded-xl border p-3 text-left text-sm ${
+                          !selectedVoiceId
+                            ? "border-pink-300 bg-pink-500/20 text-white"
+                            : "border-white/10 bg-white/5 text-white/60"
+                        }`}
+                      >
+                        Автоматично: найкращий доступний
+                      </button>
+                      {availableCharlieVoices.map((voice) => (
+                        <button
+                          key={voice.id}
+                          type="button"
+                          onClick={() => setCharlieVoiceChoice(voice.id)}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            selectedVoiceId === voice.id
+                              ? "border-pink-300 bg-gradient-to-r from-pink-500/25 to-orange-400/15 text-white"
+                              : "border-white/10 bg-white/5 text-white/65"
+                          }`}
+                        >
+                          <span className="block truncate text-sm font-bold">{voice.name}</span>
+                          <span className="mt-1 block text-xs text-white/40">
+                            {voice.language || "невідома мова"} · {voice.local ? "на телефоні" : "онлайн"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="mt-4 grid gap-3">
                     <label className="text-sm font-semibold text-white/70">
                       {"\u0428\u0432\u0438\u0434\u043a\u0456\u0441\u0442\u044c \u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f"}: {voiceRate.toFixed(2)}
                       <input
                         type="range"
-                        min="0.6"
-                        max="1.4"
+                        min="0.85"
+                        max="1.3"
                         step="0.05"
                         value={voiceRate}
                         onChange={(event) => setVoiceRateChoice(Number(event.target.value))}
@@ -5662,12 +5865,24 @@ export default function FitnessHabitsApp() {
                       Pitch: {voicePitch.toFixed(2)}
                       <input
                         type="range"
-                        min="0.6"
-                        max="1.4"
+                        min="0.85"
+                        max="1.25"
                         step="0.05"
                         value={voicePitch}
                         onChange={(event) => setVoicePitchChoice(Number(event.target.value))}
                         className="mt-2 w-full accent-orange-400"
+                      />
+                    </label>
+                    <label className="text-sm font-semibold text-white/70">
+                      Гучність: {Math.round(voiceVolume * 100)}%
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={voiceVolume}
+                        onChange={(event) => setVoiceVolumeChoice(Number(event.target.value))}
+                        className="mt-2 w-full accent-cyan-300"
                       />
                     </label>
                   </div>
@@ -5676,8 +5891,14 @@ export default function FitnessHabitsApp() {
                     onClick={testCharlieVoice}
                     className="mt-3 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 p-3 font-bold text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.01]"
                   >
-                    {"\u0422\u0435\u0441\u0442 \u0433\u043e\u043b\u043e\u0441\u0443"}
+                    Test voice
                   </button>
+                  <div className="mt-3 rounded-2xl bg-black/20 p-3 text-xs text-white/50">
+                    <p className="font-bold text-white/70">Діагностика голосу</p>
+                    <p className="mt-1 break-words">
+                      {voiceDiagnostics.status}: {voiceDiagnostics.detail || "очікує тесту"}
+                    </p>
+                  </div>
                   {voiceMessage && (
                     <p className="mt-3 rounded-2xl bg-rose-500/15 p-3 text-sm text-rose-100">
                       {voiceMessage}

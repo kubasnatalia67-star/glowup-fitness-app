@@ -8,16 +8,20 @@ export const hasNativeTts = () =>
 export async function speakNativeText({
   text,
   language = "uk-UA",
-  rate = 1,
+  rate = 1.1,
   pitch = 1,
-  preset = "coach",
+  volume = 1,
+  preset = "femaleCoach",
+  voiceName = "",
 }) {
   return GlowUpTts.speak({
     text,
     language,
     rate: Number(rate) || 1,
     pitch: Number(pitch) || 1,
+    volume: Number(volume) || 1,
     preset,
+    voiceName,
   });
 }
 
@@ -31,4 +35,9 @@ export async function getNativeTtsAvailability() {
 export async function stopNativeSpeech() {
   if (!hasNativeTts()) return;
   await GlowUpTts.stop();
+}
+
+export async function getNativeTtsVoices() {
+  if (!hasNativeTts()) return { voices: [], native: false };
+  return GlowUpTts.getVoices();
 }
