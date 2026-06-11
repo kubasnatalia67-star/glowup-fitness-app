@@ -96,6 +96,7 @@ import {
   getAndroidStepsStatus,
   getAndroidTodaySteps,
   hasNativeStepCounter,
+  openAndroidStepsPermissionSettings,
   resetAndroidStepsBaseline,
 } from "./services/stepsService.js";
 import {
@@ -902,13 +903,16 @@ export default function FitnessHabitsApp() {
     () => localStorage.getItem("voiceEnabled") !== "false"
   );
   const [voicePreset, setVoicePreset] = useState(
-    () => localStorage.getItem("voicePreset") || "coach"
+    () => {
+      const savedPreset = localStorage.getItem("voicePreset");
+      return CHARLIE_VOICE_PRESETS[savedPreset] ? savedPreset : "femaleCoach";
+    }
   );
   const [voiceRate, setVoiceRate] = useState(
-    () => Number(localStorage.getItem("voiceRate")) || CHARLIE_VOICE_PRESETS.coach.rate
+    () => Number(localStorage.getItem("voiceRate")) || CHARLIE_VOICE_PRESETS.femaleCoach.rate
   );
   const [voicePitch, setVoicePitch] = useState(
-    () => Number(localStorage.getItem("voicePitch")) || CHARLIE_VOICE_PRESETS.coach.pitch
+    () => Number(localStorage.getItem("voicePitch")) || CHARLIE_VOICE_PRESETS.femaleCoach.pitch
   );
   const [voiceMessage, setVoiceMessage] = useState("");
   const [measurements, setMeasurements] = useState(() => readJson("bodyMeasurements", []));
@@ -3540,10 +3544,10 @@ export default function FitnessHabitsApp() {
     );
 
     const presetVoiceHints = {
+      femaleCoach: ["female", "woman", "zira", "samantha", "kateryna", "google"],
+      maleCoach: ["male", "man", "david", "daniel", "ostap", "microsoft"],
       calm: ["female", "natural", "google", "microsoft"],
       bright: ["female", "zira", "samantha", "google"],
-      coach: ["male", "david", "daniel", "microsoft"],
-      soft: ["female", "soft", "susan", "google"],
     };
 
     const hints = presetVoiceHints[voicePreset] || [];
@@ -4659,6 +4663,19 @@ export default function FitnessHabitsApp() {
     }
   };
 
+  const openStepsPermissionSettings = async () => {
+    try {
+      await openAndroidStepsPermissionSettings();
+      setStepsSourceMessage(
+        "У дозволах GlowUp обери «Фізична активність» і натисни «Дозволити». Після повернення натисни «Оновити кроки»."
+      );
+    } catch (error) {
+      setStepsSourceMessage(
+        error.message || "Не вдалося відкрити налаштування Android. Відкрий GlowUp у списку застосунків і дозволь Physical activity."
+      );
+    }
+  };
+
   const startNewWorkoutTimer = () => {
     const minutes = getVideoWorkoutMinutes(selectedWorkout, selectedSplitWorkout?.duration || 25);
     setSelectedMinutes(minutes);
@@ -5621,7 +5638,10 @@ export default function FitnessHabitsApp() {
                             : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
                         }`}
                       >
-                        {preset.label}
+                        <span className="block">{preset.label}</span>
+                        <span className="mt-1 block text-xs font-normal text-white/45">
+                          {preset.description}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -6604,6 +6624,15 @@ export default function FitnessHabitsApp() {
                         </div>
                       )}
                       <div className="grid gap-2 sm:grid-cols-2">
+                        {stepsSensorStatus?.native && !stepsSensorStatus.permissionGranted && (
+                          <button
+                            type="button"
+                            onClick={openStepsPermissionSettings}
+                            className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2 font-bold text-white shadow-lg shadow-pink-500/20 sm:col-span-2"
+                          >
+                            Дозволити фізичну активність
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={syncAndroidSteps}
@@ -8963,22 +8992,34 @@ export default function FitnessHabitsApp() {
                 </div>
 
                 <div className="mt-4 grid gap-4 rounded-3xl bg-white/5 p-4 sm:grid-cols-2">
-                  <label className="min-w-0">
+                  <div className="min-w-0 sm:col-span-2">
                     <span className="mb-2 block text-xs font-bold text-white/55">Настрій сьогодні</span>
-                    <select
-                      value={cycleTracker.mood || ""}
-                      onChange={(event) =>
-                        setCycleTracker((current) => ({ ...current, mood: event.target.value }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-[#24203f] px-4 py-3 text-white outline-none"
-                    >
-                      {CYCLE_MOOD_OPTIONS.map((option) => (
-                        <option key={option.value || "empty"} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {CYCLE_MOOD_OPTIONS.filter((option) => option.value).map((option) => {
+                        const selected = cycleTracker.mood === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              setCycleTracker((current) => ({
+                                ...current,
+                                mood: selected ? "" : option.value,
+                              }))
+                            }
+                            className={`min-w-0 rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
+                              selected
+                                ? "border-pink-300 bg-gradient-to-r from-pink-500/30 to-orange-400/20 text-white shadow-lg shadow-pink-950/20"
+                                : "border-white/10 bg-white/[0.06] text-white/65 hover:bg-white/10"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <label className="min-w-0">
                     <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-white/55">

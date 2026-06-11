@@ -24,6 +24,7 @@ public class GlowUpWidgetPlugin extends Plugin {
     private static final String WATER_GOAL_KEY = "waterGoalMl";
     private static final String WEIGHT_KEY = "weightKg";
     private static final String STEPS_KEY = "steps";
+    private static final String STEPS_DATE_KEY = "stepsDate";
     private static final String ACTIVE_CALORIES_KEY = "activeCalories";
     private static final String CALORIES_CONSUMED_KEY = "caloriesConsumed";
     private static final String DAILY_CALORIES_GOAL_KEY = "dailyCaloriesGoal";
@@ -41,7 +42,10 @@ public class GlowUpWidgetPlugin extends Plugin {
         Integer dailyCaloriesGoal = call.getInt("dailyCaloriesGoal", 0);
         Integer remainingCalories = call.getInt("remainingCalories", 0);
 
-        int safeSteps = steps == null ? 0 : steps;
+        int safeSteps = Math.max(
+            steps == null ? 0 : steps,
+            GlowUpWidgetProvider.getStoredTodaySteps(getContext())
+        );
         int safeActiveCalories =
             activeCalories == null ? Math.round(safeSteps * 0.04f) : activeCalories;
         String today = todayKey();
@@ -54,6 +58,7 @@ public class GlowUpWidgetPlugin extends Plugin {
             .putInt(WATER_GOAL_KEY, waterGoalMl == null ? 2000 : waterGoalMl)
             .putString(WEIGHT_KEY, weightKg == null ? "" : weightKg)
             .putInt(STEPS_KEY, safeSteps)
+            .putString(STEPS_DATE_KEY, today)
             .putInt(ACTIVE_CALORIES_KEY, safeActiveCalories)
             .putInt(CALORIES_CONSUMED_KEY, caloriesConsumed == null ? 0 : caloriesConsumed)
             .putInt(DAILY_CALORIES_GOAL_KEY, dailyCaloriesGoal == null ? 0 : dailyCaloriesGoal)
@@ -72,6 +77,8 @@ public class GlowUpWidgetPlugin extends Plugin {
     public void getStats(PluginCall call) {
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         GlowUpWidgetProvider.resetWaterIfNewDay(prefs);
+        GlowUpWidgetProvider.resetStepsIfNewDay(prefs);
+        GlowUpWidgetProvider.refreshStepsFromSensor(getContext());
 
         call.resolve(buildStatsResponse(prefs));
     }
@@ -80,6 +87,8 @@ public class GlowUpWidgetPlugin extends Plugin {
     public void getStatus(PluginCall call) {
         SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         GlowUpWidgetProvider.resetWaterIfNewDay(prefs);
+        GlowUpWidgetProvider.resetStepsIfNewDay(prefs);
+        GlowUpWidgetProvider.refreshStepsFromSensor(getContext());
 
         AppWidgetManager manager = AppWidgetManager.getInstance(getContext());
         ComponentName provider = new ComponentName(getContext(), GlowUpWidgetProvider.class);

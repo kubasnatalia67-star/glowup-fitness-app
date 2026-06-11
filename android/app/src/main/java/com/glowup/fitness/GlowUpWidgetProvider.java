@@ -7,7 +7,15 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.Build;
 import android.widget.RemoteViews;
+
+import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -21,13 +29,19 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
     private static final String WATER_GOAL_KEY = "waterGoalMl";
     private static final String WEIGHT_KEY = "weightKg";
     private static final String STEPS_KEY = "steps";
+    private static final String STEPS_DATE_KEY = "stepsDate";
     private static final String ACTIVE_CALORIES_KEY = "activeCalories";
+    private static final String STEPS_PREFS_NAME = "GlowUpSteps";
+    private static final String SENSOR_DATE_KEY = "date";
+    private static final String SENSOR_BASELINE_KEY = "baseline";
+    private static final String SENSOR_LAST_TOTAL_KEY = "lastTotal";
     private static final String CALORIES_CONSUMED_KEY = "caloriesConsumed";
     private static final String DAILY_CALORIES_GOAL_KEY = "dailyCaloriesGoal";
     private static final String REMAINING_CALORIES_KEY = "remainingCalories";
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
+        refreshStepsFromSensor(context);
         for (int appWidgetId : appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId);
         }
@@ -47,6 +61,19 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
                 .apply();
 
             updateAllWidgets(context);
+            return;
+        }
+
+        if (
+            Intent.ACTION_DATE_CHANGED.equals(intent.getAction())
+                || Intent.ACTION_TIMEZONE_CHANGED.equals(intent.getAction())
+        ) {
+            SharedPreferences prefs =
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            resetWaterIfNewDay(prefs);
+            resetStepsIfNewDay(prefs);
+            refreshStepsFromSensor(context);
+            updateAllWidgets(context);
         }
     }
 
@@ -62,6 +89,7 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         resetWaterIfNewDay(prefs);
+        resetStepsIfNewDay(prefs);
 
         int waterMl = prefs.getInt(WATER_KEY, 0);
         int waterGoalMl = Math.max(1, prefs.getInt(WATER_GOAL_KEY, 2000));
@@ -129,5 +157,93 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
                 .putString(WATER_DATE_KEY, today)
                 .apply();
         }
+    }
+
+    static void resetStepsIfNewDay(SharedPreferences prefs) {
+        String today = todayKey();
+        String savedDate = prefs.getString(STEPS_DATE_KEY, "");
+        if (!today.equals(savedDate)) {
+            prefs.edit()
+                .putInt(STEPS_KEY, 0)
+                .putInt(ACTIVE_CALORIES_KEY, 0)
+                .putString(STEPS_DATE_KEY, today)
+                .apply();
+        }
+    }
+
+    static int getStoredTodaySteps(Context context) {
+        SharedPreferences sensorPrefs =
+            context.getSharedPreferences(STEPS_PREFS_NAME, Context.MODE_PRIVATE);
+        if (!todayKey().equals(sensorPrefs.getString(SENSOR_DATE_KEY, ""))) {
+            return 0;
+        }
+
+        int total = sensorPrefs.getInt(SENSOR_LAST_TOTAL_KEY, 0);
+        int baseline = sensorPrefs.getInt(SENSOR_BASELINE_KEY, total);
+        return Math.max(0, total - baseline);
+    }
+
+    static void refreshStepsFromSensor(Context context) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.ACTIVITY_RECOGNITION
+                ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return;
+        }
+
+        SensorManager manager =
+            (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+        if (manager == null) return;
+
+        Sensor stepCounter = manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        if (stepCounter == null) return;
+
+        SensorEventListener listener = new SensorEventListener() {
+            @Override
+            public void onSensorChanged(SensorEvent event) {
+                if (event.values.length == 0) return;
+                manager.unregisterListener(this);
+
+                int totalSteps = Math.round(event.values[0]);
+                String today = todayKey();
+                SharedPreferences sensorPrefs =
+                    context.getSharedPreferences(STEPS_PREFS_NAME, Context.MODE_PRIVATE);
+                String savedDate = sensorPrefs.getString(SENSOR_DATE_KEY, "");
+                int baseline = sensorPrefs.getInt(SENSOR_BASELINE_KEY, totalSteps);
+
+                if (!today.equals(savedDate)) {
+                    baseline = totalSteps;
+                }
+
+                int todaySteps = Math.max(0, totalSteps - baseline);
+                sensorPrefs.edit()
+                    .putString(SENSOR_DATE_KEY, today)
+                    .putInt(SENSOR_BASELINE_KEY, baseline)
+                    .putInt(SENSOR_LAST_TOTAL_KEY, totalSteps)
+                    .apply();
+
+                SharedPreferences widgetPrefs =
+                    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                widgetPrefs.edit()
+                    .putInt(STEPS_KEY, todaySteps)
+                    .putString(STEPS_DATE_KEY, today)
+                    .putInt(ACTIVE_CALORIES_KEY, Math.round(todaySteps * 0.04f))
+                    .apply();
+                updateAllWidgets(context);
+            }
+
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            }
+        };
+
+        manager.registerListener(
+            listener,
+            stepCounter,
+            SensorManager.SENSOR_DELAY_NORMAL
+        );
     }
 }

@@ -163,12 +163,15 @@ public class GlowUpTtsPlugin extends Plugin {
         score += voice.getQuality() * 6;
         score -= voice.getLatency() * 2;
 
-        if ("coach".equals(preset)) {
+        if ("maleCoach".equalsIgnoreCase(preset)) {
             if (name.contains("male") || name.contains("man") || name.contains("david") || name.contains("daniel")) score += 12;
-            if (name.contains("network")) score -= 4;
+            if (name.contains("female") || name.contains("woman")) score -= 10;
+        } else if ("femaleCoach".equalsIgnoreCase(preset)) {
+            if (name.contains("female") || name.contains("woman") || name.contains("google")) score += 12;
+            if (name.contains("male") || name.contains("man")) score -= 10;
         } else if ("bright".equals(preset)) {
             if (name.contains("female") || name.contains("woman") || name.contains("google")) score += 10;
-        } else if ("soft".equals(preset) || "calm".equals(preset)) {
+        } else if ("calm".equals(preset)) {
             if (name.contains("female") || name.contains("natural") || name.contains("google")) score += 8;
         }
 

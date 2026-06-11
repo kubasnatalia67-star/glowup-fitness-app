@@ -28,3 +28,8 @@ export async function getAndroidStepsStatus() {
 
   return GlowUpSteps.getStatus();
 }
+
+export async function openAndroidStepsPermissionSettings() {
+  if (!hasNativeStepCounter()) return null;
+  return GlowUpSteps.openPermissionSettings();
+}

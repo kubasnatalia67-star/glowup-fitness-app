@@ -2,7 +2,9 @@ package com.glowup.fitness;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -10,6 +12,7 @@ import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
@@ -78,6 +81,20 @@ public class GlowUpStepsPlugin extends Plugin {
         call.resolve(response);
     }
 
+    @PluginMethod
+    public void openPermissionSettings(PluginCall call) {
+        Intent intent = new Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:" + getContext().getPackageName())
+        );
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+
+        JSObject response = new JSObject();
+        response.put("opened", true);
+        call.resolve(response);
+    }
+
     @PermissionCallback
     private void activityPermissionCallback(PluginCall call) {
         if (hasActivityPermission()) {
@@ -141,6 +158,7 @@ public class GlowUpStepsPlugin extends Plugin {
                 StepSnapshot snapshot = resetBaseline
                     ? resetTodaySnapshot(totalSteps)
                     : getTodaySnapshot(totalSteps);
+                syncWidgetSteps(snapshot.todaySteps);
 
                 JSObject response = new JSObject();
                 response.put("available", true);
@@ -208,6 +226,17 @@ public class GlowUpStepsPlugin extends Plugin {
             .apply();
 
         return new StepSnapshot(0, totalSteps, true);
+    }
+
+    private void syncWidgetSteps(int todaySteps) {
+        SharedPreferences widgetPrefs =
+            getContext().getSharedPreferences("GlowUpWidget", Context.MODE_PRIVATE);
+        widgetPrefs.edit()
+            .putInt("steps", todaySteps)
+            .putString("stepsDate", todayKey())
+            .putInt("activeCalories", Math.round(todaySteps * 0.04f))
+            .apply();
+        GlowUpWidgetProvider.updateAllWidgets(getContext());
     }
 
     private static String todayKey() {

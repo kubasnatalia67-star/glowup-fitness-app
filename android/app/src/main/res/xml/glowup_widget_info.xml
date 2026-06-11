@@ -6,5 +6,5 @@
     android:minHeight="190dp"
     android:previewLayout="@layout/glowup_widget"
     android:resizeMode="horizontal|vertical"
-    android:updatePeriodMillis="0"
+    android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />
