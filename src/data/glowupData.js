@@ -320,7 +320,7 @@ export const CHARLIE_TEST_PHRASES = {
 export const TRANSLATIONS = {
   uk: {
     settings: "Налаштування",
-    settingsSubtitle: "звук, дозволи, дизайн і мова",
+    settingsSubtitle: "дозволи, дизайн і мова",
     language: "Мова програми",
     languageNote: "Мова, яку ти просила не додавати, відсутня у списку.",
     appDesign: "Дизайн програми",
@@ -350,7 +350,7 @@ export const TRANSLATIONS = {
   },
   en: {
     settings: "Settings",
-    settingsSubtitle: "sound, permissions, design and language",
+    settingsSubtitle: "permissions, design and language",
     language: "App language",
     languageNote: "The excluded language is not available in this list.",
     appDesign: "App design",
@@ -380,7 +380,7 @@ export const TRANSLATIONS = {
   },
   pl: {
     settings: "Ustawienia",
-    settingsSubtitle: "dźwięk, uprawnienia, wygląd i język",
+    settingsSubtitle: "uprawnienia, wygląd i język",
     language: "Język aplikacji",
     languageNote: "Wykluczony język nie jest dostępny na liście.",
     appDesign: "Wygląd aplikacji",
@@ -410,7 +410,7 @@ export const TRANSLATIONS = {
   },
   de: {
     settings: "Einstellungen",
-    settingsSubtitle: "Ton, Berechtigungen, Design und Sprache",
+    settingsSubtitle: "Berechtigungen, Design und Sprache",
     language: "App-Sprache",
     languageNote: "Die ausgeschlossene Sprache ist in dieser Liste nicht verfügbar.",
     appDesign: "App-Design",
@@ -440,7 +440,7 @@ export const TRANSLATIONS = {
   },
   es: {
     settings: "Ajustes",
-    settingsSubtitle: "sonido, permisos, diseño e idioma",
+    settingsSubtitle: "permisos, diseño e idioma",
     language: "Idioma de la app",
     languageNote: "El idioma excluido no está disponible en esta lista.",
     appDesign: "Diseño de la app",

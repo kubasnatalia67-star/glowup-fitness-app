@@ -126,6 +126,9 @@ const DEFAULT_CYCLE_TRACKER = {
   note: "",
 };
 
+// Keep the TTS implementation available for a future voice-mode release.
+const CHARLIE_VOICE_UI_ENABLED = false;
+
 const CYCLE_MOOD_OPTIONS = [
   { value: "", label: "Обери настрій" },
   { value: "good", label: "Добрий" },
@@ -901,7 +904,7 @@ export default function FitnessHabitsApp() {
   const [apiBaseUrl, setApiBaseUrl] = useState(() => getConfiguredApiBaseUrl());
   const [apiBaseUrlMessage, setApiBaseUrlMessage] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(
-    () => localStorage.getItem("voiceEnabled") !== "false"
+    () => CHARLIE_VOICE_UI_ENABLED && localStorage.getItem("voiceEnabled") !== "false"
   );
   const [voicePreset, setVoicePreset] = useState(
     () => {
@@ -966,7 +969,7 @@ export default function FitnessHabitsApp() {
     workoutReminder: localStorage.getItem("setting-workoutReminder") === "true",
     photoAccess: localStorage.getItem("setting-photoAccess") === "true",
     darkTheme: localStorage.getItem("appTheme") === "night",
-    sound: localStorage.getItem("voiceEnabled") !== "false",
+    sound: CHARLIE_VOICE_UI_ENABLED && localStorage.getItem("voiceEnabled") !== "false",
     vibration: localStorage.getItem("setting-vibration") === "true",
   }));
 
@@ -3649,6 +3652,7 @@ export default function FitnessHabitsApp() {
   };
 
   const speak = async (text, { force = false } = {}) => {
+    if (!CHARLIE_VOICE_UI_ENABLED) return;
     if (!text || (!voiceEnabled && !force)) return;
 
     const languageCode = getSpeechLanguage();
@@ -3887,6 +3891,7 @@ export default function FitnessHabitsApp() {
   };
 
   const startVoiceInput = () => {
+    if (!CHARLIE_VOICE_UI_ENABLED) return;
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -4111,6 +4116,15 @@ export default function FitnessHabitsApp() {
   };
 
   useEffect(() => {
+    if (!CHARLIE_VOICE_UI_ENABLED) {
+      localStorage.setItem("voiceEnabled", "false");
+      stopNativeSpeech().catch(() => {});
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      return undefined;
+    }
+
     refreshCharlieVoices();
 
     if (!hasNativeTts() && window.speechSynthesis) {
@@ -4371,7 +4385,9 @@ export default function FitnessHabitsApp() {
     ["workoutReminder", "Нагадування про тренування", "Пуш для тренування у вибраний день.", "🏋️"],
     ["photoAccess", "Доступ до фото", "Завантаження фото страв і прогресу.", "🖼"],
     ["darkTheme", "Темна тема", "Глибокий нічний режим GlowUp.", "🌙"],
-    ["sound", "Звук", "Голос Чарлі та звукові підказки.", "🔊"],
+    ...(CHARLIE_VOICE_UI_ENABLED
+      ? [["sound", "Звук", "Голос Чарлі та звукові підказки.", "🔊"]]
+      : []),
     ["vibration", "Вібрація", "Короткий tactile feedback для дій.", "📳"],
   ];
 
@@ -5755,6 +5771,7 @@ export default function FitnessHabitsApp() {
                     </p>
                   )}
                 </section>
+                {CHARLIE_VOICE_UI_ENABLED && (
                 <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-pink-950/20">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
@@ -5905,6 +5922,7 @@ export default function FitnessHabitsApp() {
                     </p>
                   )}
                 </section>
+                )}
               </div>
             </div>
           </div>
