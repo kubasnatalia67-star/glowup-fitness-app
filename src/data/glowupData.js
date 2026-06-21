@@ -322,7 +322,7 @@ export const TRANSLATIONS = {
     settings: "Налаштування",
     settingsSubtitle: "дозволи, дизайн і мова",
     language: "Мова програми",
-    languageNote: "Мова, яку ти просила не додавати, відсутня у списку.",
+    languageNote: "Обери мову інтерфейсу та відповідей AI.",
     appDesign: "Дизайн програми",
     charlieSound: "Звук Чарлі",
     permissions: "Дозволи",
@@ -352,7 +352,7 @@ export const TRANSLATIONS = {
     settings: "Settings",
     settingsSubtitle: "permissions, design and language",
     language: "App language",
-    languageNote: "The excluded language is not available in this list.",
+    languageNote: "Choose the language for the interface and AI responses.",
     appDesign: "App design",
     charlieSound: "Charlie sound",
     permissions: "Permissions",
@@ -382,7 +382,7 @@ export const TRANSLATIONS = {
     settings: "Ustawienia",
     settingsSubtitle: "uprawnienia, wygląd i język",
     language: "Język aplikacji",
-    languageNote: "Wykluczony język nie jest dostępny na liście.",
+    languageNote: "Wybierz język interfejsu i odpowiedzi AI.",
     appDesign: "Wygląd aplikacji",
     charlieSound: "Dźwięk Charliego",
     permissions: "Uprawnienia",
@@ -412,7 +412,7 @@ export const TRANSLATIONS = {
     settings: "Einstellungen",
     settingsSubtitle: "Berechtigungen, Design und Sprache",
     language: "App-Sprache",
-    languageNote: "Die ausgeschlossene Sprache ist in dieser Liste nicht verfügbar.",
+    languageNote: "Wähle die Sprache für die Oberfläche und AI-Antworten.",
     appDesign: "App-Design",
     charlieSound: "Charlies Stimme",
     permissions: "Berechtigungen",
@@ -442,7 +442,7 @@ export const TRANSLATIONS = {
     settings: "Ajustes",
     settingsSubtitle: "permisos, diseño e idioma",
     language: "Idioma de la app",
-    languageNote: "El idioma excluido no está disponible en esta lista.",
+    languageNote: "Elige el idioma de la interfaz y de las respuestas de la IA.",
     appDesign: "Diseño de la app",
     charlieSound: "Sonido de Charlie",
     permissions: "Permisos",
@@ -1049,6 +1049,15 @@ export const WORKOUT_GOAL_CONFIGS = {
     extraExercise: "Силовий добір",
     timed: false,
   },
+  maintenance: {
+    label: "Підтримка форми",
+    shortLabel: "Баланс",
+    note: "Збалансовані full body тренування, мобільність і помірне кардіо для стабільної форми.",
+    emphasis: "баланс + тонус",
+    accent: "from-cyan-400 to-pink-500",
+    extraExercise: "Баланс тіла",
+    timed: true,
+  },
   posture: {
     label: "Постава / гіперлордоз",
     shortLabel: "Постава",
@@ -1069,7 +1078,7 @@ export const WORKOUT_GOAL_CONFIGS = {
   },
 };
 
-export const WORKOUT_GOAL_ORDER = ["weightLoss", "tone", "muscle", "posture", "endurance"];
+export const WORKOUT_GOAL_ORDER = ["weightLoss", "tone", "muscle", "maintenance"];
 
 export const formatExercisePlan = (exercise, exerciseIndex, config) => {
   const timedExercise =
@@ -1128,9 +1137,9 @@ export const ONBOARDING_DATA_KEY = "glowup-onboarding-data";
 
 export const ONBOARDING_GOALS = [
   "Схуднути",
-  "Набрати м'язи",
   "Підтягнути тіло",
-  "Виправити поставу",
+  "Набір м'язів",
+  "Підтримка форми",
 ];
 
 export const ONBOARDING_ACTIVITIES = [
@@ -1158,16 +1167,29 @@ export const formatOneDecimal = (value) =>
 
 export const getPersonalCaloriesGoal = (profile, currentWeight = 68) => {
   const weight = toNumber(profile.weight, currentWeight) || currentWeight || 68;
+  const height = toNumber(profile.height);
+  const age = toNumber(profile.age);
   const goal = (profile.goal || "").toLowerCase();
-  const base = weight * 30;
+  const activityMultipliers = {
+    low: 1.25,
+    medium: 1.4,
+    active: 1.55,
+    "very-active": 1.7,
+  };
+  const activityMultiplier = activityMultipliers[profile.activity] || 1.35;
+  const femaleBmr =
+    height > 0 && age > 0
+      ? 10 * weight + 6.25 * height - 5 * age - 161
+      : weight * 22;
+  const base = femaleBmr * activityMultiplier;
   const adjustment = goal.includes("схуд")
     ? -300
-    : goal.includes("набрати")
+    : goal.includes("наб")
       ? 300
       : goal.includes("підтяг")
         ? -100
         : 0;
-  const target = Math.min(Math.max(base + adjustment, 1300), 3400);
+  const target = Math.min(Math.max(base + adjustment, 1200), 2800);
 
   return Math.round(target / 50) * 50;
 };
@@ -1191,12 +1213,19 @@ export const buildPersonalPlan = ({
   const height = toNumber(profile.height);
   const goalWeight = toNumber(profile.goalWeight);
   const age = toNumber(profile.age);
-  const goal = profile.goal || "Покращити здоров'я";
-  const hasProfileData = weight > 0 && height > 0 && goalWeight > 0;
+  const goal = profile.goal || "Підтримка форми";
+  const hasProfileData =
+    weight > 0 &&
+    height > 0 &&
+    goalWeight > 0 &&
+    Boolean(profile.goal) &&
+    Boolean(profile.activity) &&
+    stepsGoal > 0;
   const bmi = hasProfileData ? weight / (height / 100) ** 2 : null;
   const bmiRounded = bmi ? formatOneDecimal(bmi) : null;
   const weightGap = hasProfileData ? formatOneDecimal(Math.abs(weight - goalWeight)) : 0;
-  const stepsPercent = Math.min(Math.round((steps / stepsGoal) * 100), 100);
+  const stepsPercent =
+    stepsGoal > 0 ? Math.min(Math.round((steps / stepsGoal) * 100), 100) : 0;
   const waterPercent = Math.min(
     Math.round(((waterConsumedMl || waterGlasses * 250) / (waterGoal || 2000)) * 100),
     100
@@ -1207,9 +1236,8 @@ export const buildPersonalPlan = ({
   if (!hasProfileData) {
     return {
       hasProfileData: false,
-      summary:
-        "Заповни зріст, поточну вагу, бажану вагу і ціль. Після цього GlowUp підлаштує калорії, фокус і щоденні поради під тебе.",
-      targetText: "Потрібні дані профілю",
+      summary: "Заповни профіль",
+      targetText: "Заповни профіль",
       bmiText: "ІМТ з'явиться після заповнення зросту та ваги.",
       workMore: "Найперше варто заповнити профіль, щоб поради були саме для тебе.",
       focusAreas: [
@@ -1244,7 +1272,7 @@ export const buildPersonalPlan = ({
   const goalLower = goal.toLowerCase();
   const targetText = goalLower.includes("схуд")
     ? `До бажаної ваги залишилось приблизно ${weightGap} кг. Реалістичний темп: 0.3-0.7 кг на тиждень.`
-    : goalLower.includes("набрати")
+    : goalLower.includes("наб")
       ? `Для набору потрібно додати приблизно ${weightGap} кг: силові тренування, білок і невеликий плюс калорій.`
       : goalLower.includes("підтяг")
         ? "Фокус: тонус тіла, регулярні силові вправи, вода і стабільний сон."
@@ -1307,9 +1335,8 @@ export const buildPersonalPlan = ({
 };
 
 export const buildBodyAnalysis = ({ gender, goal }) => {
-  const genderText =
-    gender === "female" ? "жіноче тіло" : gender === "male" ? "чоловіче тіло" : "тіло";
-  const goalText = goal || "Покращити здоров'я";
+  const genderText = "жіноче тіло";
+  const goalText = goal || "Підтримка форми";
   const goalLower = goalText.toLowerCase();
   const goalRecommendations = goalLower.includes("постав")
     ? [
@@ -1336,7 +1363,7 @@ export const buildBodyAnalysis = ({ gender, goal }) => {
           ];
 
   return {
-    bodyScore: gender === "male" ? 74 : 72,
+    bodyScore: 72,
     visual: `Аналіз адаптований під ${genderText} і ціль: ${goalText}.`,
     posture:
       "Є можливі ознаки напруження у попереку або плечах. Це не діагноз, а підказка для тренувального фокусу.",
@@ -1427,16 +1454,24 @@ export const buildOnboardingPlan = (data) => {
   const activity =
     ONBOARDING_ACTIVITIES.find((item) => item.key === data.activity) ||
     ONBOARDING_ACTIVITIES[1];
-  const weight = toNumber(data.weight, 68);
+  const weight = toNumber(data.weight);
+  const steps = toNumber(data.stepsGoal);
   const calories = getPersonalCaloriesGoal(
-    { goal: data.goal || "Підтягнути тіло", weight },
+    {
+      goal: data.goal || "Підтягнути тіло",
+      weight,
+      height: data.height,
+      age: data.age,
+      activity: data.activity,
+      gender: "female",
+    },
     weight
   );
 
   return {
     calories,
     water: activity.water,
-    steps: activity.steps,
+    steps,
     training:
       data.trainings?.length > 0
         ? `${data.trainings.slice(0, 2).join(" + ")} • 3-4 рази/тиждень`

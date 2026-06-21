@@ -9,5 +9,6 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GlowUpWidgetPlugin.class);
         registerPlugin(GlowUpStepsPlugin.class);
         super.onCreate(savedInstanceState);
+        GlowUpStepUpdateReceiver.schedule(this);
     }
 }

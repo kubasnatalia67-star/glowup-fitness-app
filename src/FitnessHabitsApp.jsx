@@ -58,6 +58,7 @@ import AIFoodScanResult from "./components/AIFoodScanResult.jsx";
 import AchievementsSection from "./components/AchievementsSection.jsx";
 import ChallengesSection from "./components/ChallengesSection.jsx";
 import GlowUpLevelCard from "./components/GlowUpLevelCard.jsx";
+import GlowSelect from "./components/GlowSelect.jsx";
 import LatestAchievementCard from "./components/LatestAchievementCard.jsx";
 import SleepTrackerCard from "./components/SleepTrackerCard.jsx";
 import WaterTrackerCard from "./components/WaterTrackerCard.jsx";
@@ -70,6 +71,7 @@ import {
   requestAppNotificationPermission,
   scheduleNativeAiCoachReminder,
   scheduleNativeSleepReminder,
+  scheduleNativeWorkoutReminders,
   scheduleNativeWaterReminders,
   scheduleNativeWakeAlarm,
   showAppNotification,
@@ -116,6 +118,16 @@ const FOOD_BARCODE_FORMATS = [
   BarcodeFormat.UpcE,
 ];
 
+const WORKOUT_REMINDER_DAYS = [
+  [2, "Пн"],
+  [3, "Вт"],
+  [4, "Ср"],
+  [5, "Чт"],
+  [6, "Пт"],
+  [7, "Сб"],
+  [1, "Нд"],
+];
+
 const DEFAULT_CYCLE_TRACKER = {
   lastPeriodStart: "",
   periodLength: 5,
@@ -125,6 +137,54 @@ const DEFAULT_CYCLE_TRACKER = {
   symptoms: [],
   note: "",
 };
+
+const CLEAN_WORKOUT_REMINDER_DAYS = [
+  [2, "Пн"],
+  [3, "Вт"],
+  [4, "Ср"],
+  [5, "Чт"],
+  [6, "Пт"],
+  [7, "Сб"],
+  [1, "Нд"],
+];
+
+const CLEAN_CYCLE_MOOD_OPTIONS = [
+  { value: "", label: "Обери настрій" },
+  { value: "good", label: "Добрий" },
+  { value: "calm", label: "Спокійний" },
+  { value: "sensitive", label: "Чутливий" },
+  { value: "irritable", label: "Дратівливий" },
+  { value: "low", label: "Пригнічений" },
+];
+
+const CLEAN_CYCLE_SYMPTOM_OPTIONS = [
+  { value: "cramps", label: "Спазми" },
+  { value: "headache", label: "Головний біль" },
+  { value: "bloating", label: "Здуття" },
+  { value: "fatigue", label: "Втома" },
+  { value: "backPain", label: "Біль у спині" },
+  { value: "cravings", label: "Тяга до солодкого" },
+];
+
+const CLEAN_PROFILE_GOAL_OPTIONS = [
+  ["Схуднути", "Зменшити вагу поступово"],
+  ["Підтягнути тіло", "Більше тонусу й сили"],
+  ["Набір м'язів", "Розвивати силу та м'язи"],
+  ["Підтримка форми", "Стабільний тонус, сон і корисні звички"],
+];
+
+const CLEAN_CHARLIE_GREETING =
+  "Привіт! Я Чарлі. Запитай мене про тренування, харчування, мотивацію, сон або корисні звички.";
+
+const SUPPORTED_APP_LANGUAGES = APP_LANGUAGES.filter(([code]) => Boolean(TRANSLATIONS[code]));
+
+const FREE_TIMER_PRESETS = [
+  { key: "hiit", label: "HIIT", minutes: 20 },
+  { key: "strength", label: "Сила", minutes: 30 },
+  { key: "yoga", label: "Йога", minutes: 25 },
+  { key: "stretch", label: "Розтяжка", minutes: 15 },
+  { key: "cardio", label: "Кардіо", minutes: 30 },
+];
 
 // Keep the TTS implementation available for a future voice-mode release.
 const CHARLIE_VOICE_UI_ENABLED = false;
@@ -186,6 +246,58 @@ const emptyUserProfile = {
   weight: "",
   goalWeight: "",
   goal: "",
+  activity: "",
+  stepsGoal: "",
+};
+
+const ACTIVE_GENDER = "female";
+const PROFILE_GOAL_OPTIONS = [
+  ["Схуднути", "Зменшити вагу поступово"],
+  ["Підтягнути тіло", "Більше тонусу й сили"],
+  ["Набір м'язів", "Розвивати силу та м'язи"],
+  ["Підтримка форми", "Стабільний тонус, сон і корисні звички"],
+];
+const ACTIVE_PROFILE_GOALS = CLEAN_PROFILE_GOAL_OPTIONS.map(([goal]) => goal);
+const normalizeProfileGoal = (goal = "") => {
+  const value = String(goal || "").trim();
+  const lower = value.toLowerCase();
+  if (lower.includes("постав") || lower.includes("здоров")) return "Підтримка форми";
+  if (value === "Набрати м'язи") return "Набір м'язів";
+  return ACTIVE_PROFILE_GOALS.includes(value) ? value : "";
+};
+
+const hasRequiredProfileFields = (profile = {}) =>
+  toNumber(profile.weight) > 0 &&
+  toNumber(profile.goalWeight) > 0 &&
+  toNumber(profile.height) > 0 &&
+  Boolean(profile.goal) &&
+  Boolean(profile.activity) &&
+  toNumber(profile.stepsGoal) > 0;
+
+const normalizeCleanProfileGoal = (goal = "") => {
+  const value = String(goal || "").trim();
+  const lower = value.toLowerCase();
+
+  if (ACTIVE_PROFILE_GOALS.includes(value)) return value;
+  if (lower.includes("схуд") || lower.includes("С…СѓРґ")) return "Схуднути";
+  if (lower.includes("підтяг") || lower.includes("С‚СЏРі")) return "Підтягнути тіло";
+  if (
+    lower.includes("м'яз") ||
+    lower.includes("мяз") ||
+    lower.includes("Рј'СЏР·") ||
+    lower.includes("РјСЏР·")
+  ) {
+    return "Набір м'язів";
+  }
+  if (
+    lower.includes("форма") ||
+    lower.includes("С„РѕСЂРј") ||
+    lower.includes("постав") ||
+    lower.includes("РїРѕСЃС‚Р°РІ")
+  ) {
+    return "Підтримка форми";
+  }
+  return "";
 };
 
 const WORKOUT_EXERCISE_ILLUSTRATIONS = {
@@ -739,6 +851,14 @@ const MANUAL_FOOD_PORTIONS = [
   },
 ];
 
+const FOOD_MEAL_OPTIONS = [
+  ["", "Не вказано"],
+  ["сніданок", "Сніданок"],
+  ["обід", "Обід"],
+  ["вечеря", "Вечеря"],
+  ["перекус", "Перекус"],
+];
+
 const findManualFoodPortion = (name) => {
   const value = name.trim().toLowerCase();
   if (!value) return null;
@@ -746,6 +866,14 @@ const findManualFoodPortion = (name) => {
     item.keywords.some((keyword) => value.includes(keyword))
   ) || null;
 };
+
+const CLEAN_FOOD_MEAL_OPTIONS = [
+  ["", "Не вказано"],
+  ["сніданок", "Сніданок"],
+  ["обід", "Обід"],
+  ["вечеря", "Вечеря"],
+  ["перекус", "Перекус"],
+];
 
 const calculateManualFoodMacros = (portion, amount) => {
   if (!portion) return null;
@@ -858,6 +986,11 @@ const MEASUREMENT_FIELDS = [
   ["leg", "Нога"],
 ];
 
+const getFloatingSafeTop = () => {
+  if (typeof window === "undefined") return 92;
+  return window.matchMedia?.("(max-width: 768px)")?.matches ? 126 : 88;
+};
+
 export default function FitnessHabitsApp() {
   const videoRef = useRef(null);
   const cameraFallbackInputRef = useRef(null);
@@ -876,7 +1009,7 @@ export default function FitnessHabitsApp() {
   const [cameraFallbackTarget, setCameraFallbackTarget] = useState("food");
   const [charliePosition, setCharliePosition] = useState(() => ({
     x: typeof window !== "undefined" ? Math.max(window.innerWidth - 76, 18) : 18,
-    y: 92,
+    y: getFloatingSafeTop(),
   }));
   const [isCharlieOpen, setIsCharlieOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -899,7 +1032,10 @@ export default function FitnessHabitsApp() {
     () => localStorage.getItem("appTheme") || "glow"
   );
   const [appLanguage, setAppLanguage] = useState(
-    () => localStorage.getItem("appLanguage") || "uk"
+    () => {
+      const savedLanguage = localStorage.getItem("appLanguage") || "uk";
+      return TRANSLATIONS[savedLanguage] ? savedLanguage : "uk";
+    }
   );
   const [apiBaseUrl, setApiBaseUrl] = useState(() => getConfiguredApiBaseUrl());
   const [apiBaseUrlMessage, setApiBaseUrlMessage] = useState("");
@@ -1089,27 +1225,34 @@ export default function FitnessHabitsApp() {
 
     return {
       ...cleanProfile,
-      gender: cleanProfile.gender || savedGlowUpData.gender || "",
+      gender: ACTIVE_GENDER,
+      goal: normalizeCleanProfileGoal(cleanProfile.goal),
       weight: String(savedGlowUpData.weight || cleanProfile.weight || ""),
     };
   });
   const [onboardingComplete, setOnboardingComplete] = useState(
-    () =>
-      localStorage.getItem(ONBOARDING_KEY) === "true" &&
-      Boolean(readJson("userProfile", null)?.name?.trim()) &&
-      !isDemoProfile(readJson("userProfile", null))
+    () => {
+      const savedProfile = readJson("userProfile", null);
+      return (
+        localStorage.getItem(ONBOARDING_KEY) === "true" &&
+        hasRequiredProfileFields(savedProfile) &&
+        !isDemoProfile(savedProfile)
+      );
+    }
   );
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingData, setOnboardingData] = useState(() =>
     readJson(ONBOARDING_DATA_KEY, {
-      goal: profile.goal || "",
-      gender: profile.gender || "",
+      goal: normalizeCleanProfileGoal(profile.goal),
+      gender: ACTIVE_GENDER,
       name: profile.name || "",
       weight: profile.weight || "",
+      goalWeight: profile.goalWeight || "",
       height: profile.height || "",
       age: profile.age || "",
-      activity: "",
-      trainings: [],
+      activity: profile.activity || "",
+      stepsGoal: profile.stepsGoal || "",
+      trainings: profile.trainings || [],
       bodyPhoto: "",
     })
   );
@@ -1162,6 +1305,13 @@ export default function FitnessHabitsApp() {
   const [bedtimeReminderTime, setBedtimeReminderTime] = useState(
     () => localStorage.getItem("bedtimeReminderTime") || "22:30"
   );
+  const [workoutReminderTime, setWorkoutReminderTime] = useState(
+    () => localStorage.getItem("workoutReminderTime") || "18:00"
+  );
+  const [workoutReminderDays, setWorkoutReminderDays] = useState(() => {
+    const savedDays = readJson("workoutReminderDays", [2, 4, 6]);
+    return Array.isArray(savedDays) ? savedDays.map(Number).filter(Boolean) : [2, 4, 6];
+  });
   const [steps, setSteps] = useState(
     () => Number(readJson("stepsDailyLog", {})[getLocalDateKey()]) || 0
   );
@@ -1190,16 +1340,23 @@ export default function FitnessHabitsApp() {
   ]);
   const [isCharlieThinking, setIsCharlieThinking] = useState(false);
 
+  useEffect(() => {
+    setAiAnswer(CLEAN_CHARLIE_GREETING);
+    setCharlieMessages([{ role: "assistant", text: CLEAN_CHARLIE_GREETING }]);
+  }, []);
+
   const [selectedMinutes, setSelectedMinutes] = useState(25);
+  const [selectedTimerPreset, setSelectedTimerPreset] = useState("yoga");
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   const totalXp = Number(xpState.totalXp) || 0;
   const xpAwarded = xpState.awarded || {};
   const glowUpLevel = getGlowUpLevelInfo(totalXp);
-  const goalWeight = Number(profile.goalWeight) || 55;
-  const startWeight = Number(profile.startWeight) || Number(profile.weight) || currentWeight || 68;
-  const stepsGoal = 20000;
+  const hasGoalWeight = Number(profile.goalWeight) > 0;
+  const goalWeight = hasGoalWeight ? Number(profile.goalWeight) : 0;
+  const startWeight = Number(profile.startWeight) || Number(profile.weight) || currentWeight || 0;
+  const stepsGoal = Number(profile.stepsGoal) > 0 ? Number(profile.stepsGoal) : 0;
   const todayWaterKey = getLocalDateKey();
   const hasTodayWaterLog = Object.prototype.hasOwnProperty.call(waterDailyLog, todayWaterKey);
   const waterConsumedMl = hasTodayWaterLog ? Number(waterDailyLog[todayWaterKey]) || 0 : 0;
@@ -1518,7 +1675,8 @@ export default function FitnessHabitsApp() {
 
     return missed.sort((a, b) => b.missedDays - a.missedDays)[0];
   })();
-  const stepsProgress = Math.min(Math.round((steps / stepsGoal) * 100), 100);
+  const stepsProgress =
+    stepsGoal > 0 ? Math.min(Math.round((steps / stepsGoal) * 100), 100) : 0;
   const stepStrideMeters = Math.max(0.5, Math.min(0.9, (Number(profile.height) || 165) * 0.00414));
   const stepsDistanceKm = formatOneDecimal(((Number(steps) || 0) * stepStrideMeters) / 1000);
   const stepsLast7Days = progressChartSeries.steps.map((value) => Number(value) || 0);
@@ -1527,7 +1685,10 @@ export default function FitnessHabitsApp() {
   );
   const stepsBest7Days = Math.max(...stepsLast7Days, 0);
   const stepsAverageDistanceKm = formatOneDecimal((stepsAverage7Days * stepStrideMeters) / 1000);
-  const stepsGoalDays7Days = stepsLast7Days.filter((value) => value >= stepsGoal).length;
+  const stepsGoalDays7Days =
+    stepsGoal > 0
+      ? stepsLast7Days.filter((value) => value >= stepsGoal).length
+      : 0;
   const stepsChartMax = Math.max(stepsGoal, stepsBest7Days, 1);
   const cycleInfo = useMemo(() => {
     const lastPeriodStart = cycleTracker.lastPeriodStart;
@@ -1622,7 +1783,7 @@ export default function FitnessHabitsApp() {
       .map(([value, count]) => ({
         value,
         count,
-        label: CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === value)?.label || value,
+        label: CLEAN_CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === value)?.label || value,
       }));
     const average = (values) =>
       values.length
@@ -1649,9 +1810,15 @@ export default function FitnessHabitsApp() {
     Math.round((stepsProgress + waterProgress + habitProgress + calorieBalance) / 4),
     100
   );
-  const weightProgressBase = Math.abs(startWeight - goalWeight);
+  const hasWeightProgressData =
+    hasGoalWeight && startWeight > 0 && currentWeight > 0;
+  const weightProgressBase = hasWeightProgressData
+    ? Math.abs(startWeight - goalWeight)
+    : 0;
   const weightProgressRaw =
-    weightProgressBase === 0
+    !hasWeightProgressData
+      ? 0
+      : weightProgressBase === 0
       ? 100
       : goalWeight < startWeight
         ? ((startWeight - currentWeight) / (startWeight - goalWeight)) * 100
@@ -1660,9 +1827,13 @@ export default function FitnessHabitsApp() {
     100,
     Math.max(0, Math.round(weightProgressRaw))
   );
-  const remainingToGoal = formatOneDecimal(Math.abs(currentWeight - goalWeight));
+  const remainingToGoal = hasWeightProgressData
+    ? formatOneDecimal(Math.abs(currentWeight - goalWeight))
+    : 0;
   const goalDirectionLabel =
-    currentWeight > goalWeight
+    !hasGoalWeight
+      ? "Ціль"
+      : currentWeight > goalWeight
       ? "Залишилось"
       : currentWeight < goalWeight
         ? "Набрати"
@@ -1816,6 +1987,73 @@ export default function FitnessHabitsApp() {
       accent: "from-purple-400 to-pink-500",
     },
   ];
+  const featureShortcutCards = [
+    {
+      target: "water",
+      icon: "💧",
+      label: "Вода",
+      value: `${waterConsumedMl} мл`,
+      detail: `${waterProgress}% цілі`,
+      accent: "from-cyan-400 to-blue-500",
+    },
+    {
+      target: "sleep",
+      icon: "🌙",
+      label: "Сон",
+      value: sleepHours ? `${sleepHours} год` : "Додати",
+      detail: `${sleepProgress}% цілі`,
+      accent: "from-indigo-400 to-purple-500",
+    },
+    {
+      target: "steps",
+      icon: "👟",
+      label: "Кроки",
+      value: `${steps}`,
+      detail: stepsGoal ? `ціль ${stepsGoal}` : "ціль не задана",
+      accent: "from-sky-400 to-cyan-500",
+    },
+    {
+      target: "training",
+      icon: "🏋️",
+      label: "Тренування",
+      value: selectedSplitWorkout?.title || selectedWorkout?.title || "План",
+      detail: `${selectedSplitProgress}% прогрес`,
+      accent: "from-orange-400 to-pink-500",
+    },
+    {
+      target: "nutrition",
+      icon: "🍽️",
+      label: "Їжа",
+      value: `${caloriesTodayTotal} ккал`,
+      detail: `${todayDiaryEntries.length} записів`,
+      accent: "from-emerald-400 to-cyan-400",
+    },
+    {
+      target: "progress",
+      icon: "📏",
+      label: "Заміри",
+      value: measurements.length ? `${measurements.length} записів` : "Додати",
+      detail: latestMeasurement ? latestMeasurement.date : "талія, стегна, груди",
+      accent: "from-violet-400 to-fuchsia-500",
+    },
+    {
+      target: "cycle",
+      icon: "🌸",
+      label: "Цикл",
+      value: cycleInfo.ready ? `${cycleInfo.day} день` : "Додати",
+      detail: cycleInfo.phase,
+      accent: "from-pink-400 to-rose-500",
+    },
+    {
+      target: "habits",
+      icon: "✅",
+      label: "Звички",
+      value: `${completedHabits}/${habits.length}`,
+      detail: `${habitPerfectDays7Days}/7 ідеальних днів`,
+      accent: "from-purple-400 to-pink-500",
+    },
+  ];
+
   const progressAnalytics = useMemo(() => {
     const dates = getLastDateKeys(7);
     const dateSet = new Set(dates);
@@ -2065,6 +2303,7 @@ export default function FitnessHabitsApp() {
       completedHabits,
       habits.length,
       selectedMinutes,
+      stepsGoal,
     ]
   );
   const charlieCoachContext = useMemo(
@@ -2297,6 +2536,16 @@ export default function FitnessHabitsApp() {
   }, [bodyAnalysisHistory]);
 
   useEffect(() => {
+    const nextGoal = normalizeCleanProfileGoal(profile.goal);
+    if (profile.gender !== ACTIVE_GENDER || profile.goal !== nextGoal) {
+      setProfile((current) => ({
+        ...current,
+        gender: ACTIVE_GENDER,
+        goal: nextGoal,
+      }));
+      return;
+    }
+
     localStorage.setItem("userProfile", JSON.stringify(profile));
   }, [profile]);
 
@@ -2305,6 +2554,7 @@ export default function FitnessHabitsApp() {
       ONBOARDING_DATA_KEY,
       JSON.stringify({
         ...onboardingData,
+        gender: ACTIVE_GENDER,
         bodyPhoto: keepLocalPhoto(onboardingData.bodyPhoto),
       })
     );
@@ -2324,7 +2574,7 @@ export default function FitnessHabitsApp() {
 
   useEffect(() => {
     const data = {
-      gender: profile.gender || "",
+      gender: ACTIVE_GENDER,
       weight: currentWeight,
       water: waterGlassesToday,
       beforePhoto: keepLocalPhoto(beforePhoto) || null,
@@ -2391,7 +2641,7 @@ export default function FitnessHabitsApp() {
             }));
           }
 
-          if (Number(stats.steps) > 0) {
+          if (Number.isFinite(Number(stats.steps))) {
             setSteps(Number(stats.steps));
           }
         })
@@ -2428,8 +2678,21 @@ export default function FitnessHabitsApp() {
     const intervalId = window.setInterval(() => {
       syncAndroidSteps();
     }, 5 * 60 * 1000);
+    const syncOnFocus = () => syncAndroidSteps();
+    const syncOnVisible = () => {
+      if (document.visibilityState === "visible") {
+        syncAndroidSteps();
+      }
+    };
 
-    return () => window.clearInterval(intervalId);
+    window.addEventListener("focus", syncOnFocus);
+    document.addEventListener("visibilitychange", syncOnVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", syncOnFocus);
+      document.removeEventListener("visibilitychange", syncOnVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -2498,6 +2761,14 @@ export default function FitnessHabitsApp() {
   useEffect(() => {
     localStorage.setItem("bedtimeReminderTime", bedtimeReminderTime);
   }, [bedtimeReminderTime]);
+
+  useEffect(() => {
+    localStorage.setItem("workoutReminderTime", workoutReminderTime);
+  }, [workoutReminderTime]);
+
+  useEffect(() => {
+    localStorage.setItem("workoutReminderDays", JSON.stringify(workoutReminderDays));
+  }, [workoutReminderDays]);
 
   useEffect(() => {
     setStepsDailyLog((log) => ({
@@ -2649,6 +2920,50 @@ export default function FitnessHabitsApp() {
   }, [settingsToggles.sleepReminder, bedtimeReminderTime, sleepGoal]);
 
   useEffect(() => {
+    if (!isCapacitorAndroid()) return;
+
+    scheduleNativeWorkoutReminders({
+      enabled: settingsToggles.workoutReminder,
+      reminderTime: workoutReminderTime,
+      weekdays: workoutReminderDays,
+    }).catch((error) => {
+      console.warn("[GlowUp Notifications] workout reminder failed", error);
+    });
+  }, [settingsToggles.workoutReminder, workoutReminderTime, workoutReminderDays]);
+
+  useEffect(() => {
+    if (!settingsToggles.workoutReminder) return undefined;
+    if (isCapacitorAndroid()) return undefined;
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      return undefined;
+    }
+
+    const [hour, minute] = workoutReminderTime.split(":").map(Number);
+    const timers = workoutReminderDays.map((weekday) => {
+      const now = new Date();
+      const next = new Date(now);
+      const targetDay = Number(weekday) % 7;
+      const daysAhead = (targetDay - now.getDay() + 7) % 7;
+      next.setDate(now.getDate() + daysAhead);
+      next.setHours(Number.isFinite(hour) ? hour : 18, Number.isFinite(minute) ? minute : 0, 0, 0);
+      if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 7);
+
+      return window.setTimeout(() => {
+        new Notification("Час тренування", {
+          body: "Твоє тренування GlowUp готове. Почни з розминки й рухайся у своєму темпі.",
+        });
+      }, next.getTime() - now.getTime());
+    });
+
+    return () => timers.forEach((timerId) => window.clearTimeout(timerId));
+  }, [
+    settingsToggles.workoutReminder,
+    workoutReminderTime,
+    workoutReminderDays,
+    notificationPermission,
+  ]);
+
+  useEffect(() => {
     if (!sleepWakeTime) {
       setSleepAlarmMessage("");
       if (isCapacitorAndroid()) {
@@ -2720,7 +3035,7 @@ export default function FitnessHabitsApp() {
         window.innerWidth - 56
       );
       const nextY = Math.min(
-        Math.max(event.clientY - offsetY, 8),
+        Math.max(event.clientY - offsetY, getFloatingSafeTop()),
         window.innerHeight - 56
       );
 
@@ -2876,6 +3191,19 @@ export default function FitnessHabitsApp() {
     try {
       const result = await analyzeFoodImage({ image: imageOverride, foodName, language: appLanguage });
       console.log("[GlowUp AI Food Scan] analyzeFood result", result);
+
+      const nutritionTotal =
+        Math.max(0, Number(result?.calories) || 0) +
+        Math.max(0, Number(result?.protein) || 0) +
+        Math.max(0, Number(result?.fat) || 0) +
+        Math.max(0, Number(result?.carbs) || 0);
+
+      if (!result?.name?.trim() || nutritionTotal <= 0) {
+        throw new Error(
+          "AI не розпізнав їжу на фото. Preview збережено: обери чіткіше фото страви або додай коротку назву й спробуй ще раз."
+        );
+      }
+
       setFoodResult(result);
       setFoodAnalysisError("");
     } catch (error) {
@@ -3480,11 +3808,6 @@ export default function FitnessHabitsApp() {
     const availablePhotos = Object.values(selectedBodyPhotos).filter(Boolean);
     if (!availablePhotos.length) return;
 
-    if (!profile.gender) {
-      setShowProfile(true);
-      return;
-    }
-
     setBodyAnalysisLoading(true);
     setBodyAnalysisError("");
 
@@ -3492,7 +3815,7 @@ export default function FitnessHabitsApp() {
       const result = await analyzeBodyImage({
         image: selectedBodyPhotos.front || availablePhotos[0],
         images: selectedBodyPhotos,
-        profile,
+        profile: { ...profile, gender: ACTIVE_GENDER },
         language: appLanguage,
       });
 
@@ -3517,14 +3840,14 @@ export default function FitnessHabitsApp() {
         ...messages,
         {
           role: "assistant",
-          text: `Я проаналізував фото тіла. Body Score: ${result.bodyScore}/100. ${result.posture}`,
+          text: `Я проаналізував фото тіла в жіночому режимі. Body Score: ${result.bodyScore}/100. ${result.posture}`,
         },
       ]);
     } catch (error) {
       console.error("[GlowUp Body Analysis] fallback used", error);
       const fallback = {
         ...buildBodyAnalysis({
-          gender: profile.gender,
+          gender: ACTIVE_GENDER,
           goal: profile.goal,
         }),
         source: "local-fallback",
@@ -3538,7 +3861,7 @@ export default function FitnessHabitsApp() {
         ...messages,
         {
           role: "assistant",
-          text: `AI аналіз фото зараз недоступний, тому я показав локальну оцінку за профілем. ${fallback.posture}`,
+          text: `AI аналіз фото зараз недоступний, тому я показав локальну жіночу оцінку за профілем. ${fallback.posture}`,
         },
       ]);
     } finally {
@@ -3769,6 +4092,29 @@ export default function FitnessHabitsApp() {
       return "Почни з короткого тренування: присідання, планка, віджимання від опори і розтяжка. 15 хвилин краще, ніж нуль.";
     }
 
+    if (question.includes("сон") || question.includes("спати") || question.includes("втом")) {
+      return "Для відновлення орієнтуйся на 7-9 годин сну. Спробуй лягати приблизно в один час, приглушити світло ввечері й не планувати важке тренування перед сном.";
+    }
+
+    if (question.includes("вода") || question.includes("пити")) {
+      return `Сьогодні випито ${waterConsumedMl} із ${waterGoal} мл. Додавай воду невеликими порціями по 200-250 мл протягом дня.`;
+    }
+
+    if (question.includes("крок") || question.includes("ходь")) {
+      return stepsGoal > 0
+        ? `Сьогодні ${steps} кроків із цілі ${stepsGoal}. Якщо сил мало, додай коротку 10-хвилинну прогулянку.`
+        : "Спочатку вкажи ціль кроків у профілі. Потім я зможу точніше підказувати щоденний темп.";
+    }
+
+    if (
+      question.includes("цикл") ||
+      question.includes("місяч") ||
+      question.includes("менстру") ||
+      question.includes("овуля")
+    ) {
+      return "Записуй дати циклу, самопочуття та симптоми. GlowUp покаже орієнтовну фазу, але сильний або незвичний біль варто обговорити з лікарем.";
+    }
+
     if (
       question.includes("стрес") ||
       question.includes("трив") ||
@@ -3785,20 +4131,20 @@ export default function FitnessHabitsApp() {
       question.includes("бізнес") ||
       question.includes("робот")
     ) {
-      return "Для заробітку обери одну навичку, яку можна продати, і практикуй її щодня. Потім покажи результат людям, яким це може допомогти.";
+      return "Я спеціалізуюся на тренуваннях, харчуванні, сні, циклі, воді та здорових звичках. Запитай мене про свій план GlowUp.";
     }
 
     if (question.includes("мотива")) {
       return "Мотивація приходить після дії. Зроби найменший крок зараз, і мозок отримає доказ, що ти рухаєшся.";
     }
 
-    return "Я Чарлі. Можу відповідати про звички, спорт, їжу, ментальне здоров'я, фокус і заробіток.";
+    return "Я Чарлі. Можу відповідати про тренування, харчування, сон, воду, кроки, цикл, настрій і здорові звички.";
   };
 
   const buildCharlieOfflineAnswer = (rawQuestion) => {
     const baseAnswer = buildCharlieAnswer(rawQuestion);
     const offlineNotes = {
-      uk: "Я зараз відповіла в офлайн-режимі GlowUp. Коли AI backend доступний, дам більш персональну відповідь по твоїх даних.",
+      uk: "Я зараз відповів в офлайн-режимі GlowUp. Коли AI backend буде доступний, дам більш персональну відповідь за твоїми даними.",
       en: "I answered in GlowUp offline mode for now. When the AI backend is available, I can make it more personal.",
       pl: "Na razie odpowiadam w trybie offline GlowUp. Gdy backend AI będzie dostępny, odpowiedź będzie bardziej osobista.",
       de: "Ich antworte gerade im GlowUp-Offline-Modus. Wenn das AI-Backend verfügbar ist, wird die Antwort persönlicher.",
@@ -4356,7 +4702,7 @@ export default function FitnessHabitsApp() {
       }
     }
 
-    if (key === "sleepReminder" && nextValue) {
+    if ((key === "sleepReminder" || key === "workoutReminder") && nextValue) {
       const permission = await getAppNotificationPermission();
       setNotificationPermission(permission);
       if (permission === "default") {
@@ -4389,6 +4735,21 @@ export default function FitnessHabitsApp() {
       ? [["sound", "Звук", "Голос Чарлі та звукові підказки.", "🔊"]]
       : []),
     ["vibration", "Вібрація", "Короткий tactile feedback для дій.", "📳"],
+  ];
+
+  const cleanSettingsRows = [
+    ["camera", "Камера", "Дозволити камеру для фото їжі та прогресу.", "📷"],
+    ["notifications", "Сповіщення", "Системні повідомлення від GlowUp.", "🔔"],
+    ["aiCoach", "AI Coach", "Чарлі, персональні відповіді та AI-підказки.", "✦"],
+    ["waterReminder", "Нагадування про воду", "Легкі нагадування пити воду протягом дня.", "💧"],
+    ["sleepReminder", "Нагадування про сон", "Вечірнє нагадування вчасно підготуватися до сну.", "☾"],
+    ["workoutReminder", "Нагадування про тренування", "Нагадування про тренування у вибраний день.", "🏋"],
+    ["photoAccess", "Доступ до фото", "Завантаження фото страв і прогресу.", "▣"],
+    ["darkTheme", "Темна тема", "Нічний режим GlowUp.", "◐"],
+    ...(CHARLIE_VOICE_UI_ENABLED
+      ? [["sound", "Звук", "Голос Чарлі та звукові підказки.", "♪"]]
+      : []),
+    ["vibration", "Вібрація", "Короткий тактильний відгук для дій.", "⌁"],
   ];
 
   const updateWeeklyWorkoutState = (workout, updater) => {
@@ -4704,7 +5065,7 @@ export default function FitnessHabitsApp() {
       painLevel: Math.max(0, Math.min(10, Number(cycleTracker.painLevel) || 0)),
       symptoms: Array.isArray(cycleTracker.symptoms)
         ? cycleTracker.symptoms.filter((symptom) =>
-            CYCLE_SYMPTOM_OPTIONS.some((option) => option.value === symptom)
+            CLEAN_CYCLE_SYMPTOM_OPTIONS.some((option) => option.value === symptom)
           )
         : [],
       note: String(cycleTracker.note || "").slice(0, 160),
@@ -4782,7 +5143,7 @@ export default function FitnessHabitsApp() {
     }
   };
 
-  const syncAndroidSteps = async () => {
+  const syncAndroidSteps = async ({ requestPermission = false } = {}) => {
     if (!hasNativeStepCounter()) {
       setStepsSensorStatus({
         native: false,
@@ -4796,6 +5157,14 @@ export default function FitnessHabitsApp() {
     }
 
     try {
+      const currentStatus = await getAndroidStepsStatus();
+      setStepsSensorStatus(currentStatus);
+
+      if (!currentStatus?.permissionGranted && !requestPermission) {
+        setStepsSourceMessage(getStepsStatusMessage(currentStatus));
+        return currentStatus;
+      }
+
       const result = await getAndroidTodaySteps();
       if (!result) return;
 
@@ -4807,16 +5176,39 @@ export default function FitnessHabitsApp() {
           ? "Крокомір Android підключено. Підрахунок за сьогодні почнеться з цього запуску."
           : `Кроки оновлено з Android step counter${status?.sensorName ? ` (${status.sensorName})` : ""}.`
       );
+      return status || result;
     } catch (error) {
       console.warn("[GlowUp Steps] native sync failed", error);
       await refreshAndroidStepsStatus();
       setStepsSourceMessage(error.message || "Крокомір Android недоступний. Ручне введення залишається.");
+      return null;
     }
+  };
+
+  const enableAndroidSteps = async () => {
+    const status = await refreshAndroidStepsStatus();
+    if (!status?.native) {
+      setStepsSourceMessage("Автоматичний підрахунок кроків доступний у застосунку GlowUp для Android.");
+      return;
+    }
+
+    if (status.permissionGranted) {
+      await syncAndroidSteps();
+      return;
+    }
+
+    const canShowSystemPrompt = String(status.permissionState || "").includes("prompt");
+    if (canShowSystemPrompt) {
+      const result = await syncAndroidSteps({ requestPermission: true });
+      if (result) return;
+    }
+
+    await openStepsPermissionSettings();
   };
 
   const calibrateAndroidSteps = async () => {
     if (!hasNativeStepCounter()) {
-      setStepsSourceMessage("Калібрування доступне тільки в Android-додатку.");
+      setStepsSourceMessage("Скидання кроків доступне тільки в Android-додатку.");
       return;
     }
 
@@ -4825,13 +5217,13 @@ export default function FitnessHabitsApp() {
       const status = await refreshAndroidStepsStatus();
       setSteps(0);
       setStepsSourceMessage(
-        `Крокомір відкалібровано. Поточний Android total: ${
-          Number(result?.totalSteps) || Number(status?.lastTotal) || 0
-        }. Пройди 20-30 кроків і натисни "Оновити кроки".`
+        `Кроки за сьогодні скинуто. Новий baseline: ${
+          Number(result?.baselineSteps) || Number(status?.baselineSteps) || 0
+        }. Наступні кроки рахуватимуться від цього значення.`
       );
     } catch (error) {
       console.warn("[GlowUp Steps] baseline reset failed", error);
-      setStepsSourceMessage(error.message || "Не вдалося відкалібрувати Android step counter.");
+      setStepsSourceMessage(error.message || "Не вдалося скинути кроки за сьогодні.");
     }
   };
 
@@ -4839,7 +5231,7 @@ export default function FitnessHabitsApp() {
     try {
       await openAndroidStepsPermissionSettings();
       setStepsSourceMessage(
-        "У дозволах GlowUp обери «Фізична активність» і натисни «Дозволити». Після повернення натисни «Оновити кроки»."
+        "У дозволах GlowUp обери «Фізична активність» і натисни «Дозволити». Після повернення кроки оновляться автоматично."
       );
     } catch (error) {
       setStepsSourceMessage(
@@ -4848,13 +5240,33 @@ export default function FitnessHabitsApp() {
     }
   };
 
-  const startNewWorkoutTimer = () => {
-    const minutes = getVideoWorkoutMinutes(selectedWorkout, selectedSplitWorkout?.duration || 25);
+  const selectVideoWorkout = (workout, index) => {
+    const minutes = getVideoWorkoutMinutes(workout, selectedSplitWorkout?.duration || 25);
+    setSelectedWorkoutIndex(index);
     setSelectedMinutes(minutes);
     setSecondsLeft(minutes * 60);
+    setIsTimerRunning(false);
+    setWorkoutPlanNotice(`Обрано "${workout.title}". Таймер налаштовано на ${minutes} хв.`);
+  };
+
+  const openWorkoutVideo = (workout, index = WORKOUT_CARDS.indexOf(workout)) => {
+    if (index >= 0 && index !== selectedWorkoutIndex) {
+      selectVideoWorkout(workout, index);
+    }
+    setOpenedWorkout(workout);
+  };
+
+  const startNewWorkoutTimer = ({ closeVideo = false } = {}) => {
+    const minutes = Math.max(1, Number(selectedMinutes) || 1);
+    if (secondsLeft <= 0 || secondsLeft > minutes * 60) {
+      setSecondsLeft(minutes * 60);
+    }
     setIsTimerRunning(true);
     setDashboardTab("training");
-    setWorkoutPlanNotice(`Вільний таймер запущено для "${selectedWorkout.title}" на ${minutes} хв.`);
+    if (closeVideo) {
+      setOpenedWorkout(null);
+    }
+    setWorkoutPlanNotice(`Таймер запущено для "${selectedWorkout.title}" на ${minutes} хв.`);
   };
 
   const openNutritionDetails = () => {
@@ -4883,6 +5295,12 @@ export default function FitnessHabitsApp() {
     if (target === "habits") {
       setDashboardTab("home");
       scrollToSection(habitsSectionRef);
+      return;
+    }
+
+    if (target === "steps") {
+      setDashboardTab("home");
+      scrollToSection(homeTopRef);
       return;
     }
 
@@ -4915,11 +5333,19 @@ export default function FitnessHabitsApp() {
   };
 
   const updateProfileField = (field, value) => {
-    setProfile((current) => ({ ...current, [field]: value }));
+    setProfile((current) => ({
+      ...current,
+      [field]: field === "gender" ? ACTIVE_GENDER : field === "goal" ? normalizeCleanProfileGoal(value) : value,
+      gender: ACTIVE_GENDER,
+    }));
   };
 
   const updateOnboardingField = (field, value) => {
-    setOnboardingData((current) => ({ ...current, [field]: value }));
+    setOnboardingData((current) => ({
+      ...current,
+      [field]: field === "gender" ? ACTIVE_GENDER : field === "goal" ? normalizeCleanProfileGoal(value) : value,
+      gender: ACTIVE_GENDER,
+    }));
   };
 
   const toggleOnboardingWorkout = (workout) => {
@@ -4946,7 +5372,37 @@ export default function FitnessHabitsApp() {
     }
   };
 
+  const getOnboardingStepError = (step) => {
+    if (step === 1 && !onboardingData.goal) {
+      return "Обери головну ціль.";
+    }
+    if (step === 3) {
+      const hasValidPersonalData =
+        onboardingData.name?.trim() &&
+        toNumber(onboardingData.weight) > 0 &&
+        toNumber(onboardingData.goalWeight) > 0 &&
+        toNumber(onboardingData.height) > 0 &&
+        toNumber(onboardingData.age) > 0;
+
+      if (!hasValidPersonalData) {
+        return "Заповни ім'я, поточну і бажану вагу, зріст та вік.";
+      }
+    }
+    if (step === 4 && !onboardingData.activity) {
+      return "Обери свій рівень активності.";
+    }
+    if (step === 4 && toNumber(onboardingData.stepsGoal) <= 0) {
+      return "Вкажи свою денну ціль кроків.";
+    }
+    if (step === 5 && !onboardingData.trainings?.length) {
+      return "Обери хоча б один формат тренувань.";
+    }
+
+    return "";
+  };
+
   const nextOnboardingStep = () => {
+    if (getOnboardingStepError(onboardingStep)) return;
     setOnboardingStep((step) => Math.min(step + 1, 7));
   };
 
@@ -4955,17 +5411,29 @@ export default function FitnessHabitsApp() {
   };
 
   const finishOnboarding = () => {
-    const nextWeight = toNumber(onboardingData.weight, currentWeight || 0);
+    const firstIncompleteStep = [1, 2, 3, 4, 5].find((step) =>
+      getOnboardingStepError(step)
+    );
+    if (firstIncompleteStep) {
+      setOnboardingStep(firstIncompleteStep);
+      return;
+    }
+
+    const nextWeight = toNumber(onboardingData.weight);
+    const nextGoalWeight = toNumber(onboardingData.goalWeight);
+    const nextStepsGoal = toNumber(onboardingData.stepsGoal);
     const nextProfile = {
       ...profile,
       name: onboardingData.name?.trim() || profile.name || "",
-      gender: onboardingData.gender || profile.gender,
-      goal: onboardingData.goal || profile.goal,
+      gender: ACTIVE_GENDER,
+      goal: normalizeCleanProfileGoal(onboardingData.goal || profile.goal),
       weight: nextWeight ? String(nextWeight) : "",
       startWeight: profile.startWeight || (nextWeight ? String(nextWeight) : ""),
+      goalWeight: nextGoalWeight ? String(nextGoalWeight) : "",
       height: onboardingData.height || profile.height,
       age: onboardingData.age || profile.age,
       activity: onboardingData.activity,
+      stepsGoal: String(nextStepsGoal),
       trainings: onboardingData.trainings || [],
     };
 
@@ -4985,6 +5453,7 @@ export default function FitnessHabitsApp() {
       ONBOARDING_DATA_KEY,
       JSON.stringify({
         ...onboardingData,
+        gender: ACTIVE_GENDER,
         bodyPhoto: keepLocalPhoto(onboardingData.bodyPhoto),
       })
     );
@@ -4992,7 +5461,7 @@ export default function FitnessHabitsApp() {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        gender: nextProfile.gender || "",
+        gender: ACTIVE_GENDER,
         weight: nextWeight,
         water: onboardingPlan.water,
         beforePhoto: keepLocalPhoto(beforePhoto) || null,
@@ -5062,7 +5531,7 @@ export default function FitnessHabitsApp() {
     const stepTitle = [
       "Welcome GlowUp",
       "Яка твоя головна ціль?",
-      "Обери стать",
+      "GlowUp для жінок",
       "Дані для персонального плану",
       "Рівень активності",
       "Які тренування тобі підходять?",
@@ -5073,7 +5542,7 @@ export default function FitnessHabitsApp() {
     const onboardingTips = [
       "Порада: заповни тільки те, що знаєш зараз. План можна змінити пізніше.",
       "Ціль потрібна, щоб GlowUp правильно підсвітив тренування, калорії та прогрес.",
-      "Стать використовується тільки для персоналізації порад і плану.",
+      "Поточна версія GlowUp налаштована для жіночого тіла та жіночих цілей.",
       "Дані допомагають порахувати орієнтир калорій, води та кроків.",
       "Рівень активності краще вибрати чесно, не ідеально.",
       "Можна обрати кілька форматів тренувань, щоб план був зручним.",
@@ -5083,7 +5552,7 @@ export default function FitnessHabitsApp() {
 
     return (
       <div
-        className={`theme-${appTheme} min-h-screen bg-[#08071a] p-4 text-white md:p-6`}
+        className={`theme-${appTheme} glow-app-shell min-h-screen bg-[#08071a] p-4 text-white md:p-6`}
         style={dashboardThemeStyle}
       >
         <div className="mx-auto flex min-h-[calc(100vh-32px)] max-w-3xl items-center">
@@ -5150,25 +5619,12 @@ export default function FitnessHabitsApp() {
               )}
 
               {onboardingStep === 2 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {[
-                    ["female", "Жінка", "Фокус на талії, сідницях, ногах, поставі та стабільності."],
-                    ["male", "Чоловік", "Фокус на силі, плечах, грудях, м'язах і відсотку жиру."],
-                  ].map(([value, label, text]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => updateOnboardingField("gender", value)}
-                      className={`rounded-2xl border p-5 text-left transition ${
-                        onboardingData.gender === value
-                          ? "border-pink-400 bg-pink-500/20"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <p className="text-xl font-black">{label}</p>
-                      <p className="mt-2 text-sm text-white/60">{text}</p>
-                    </button>
-                  ))}
+                <div className="rounded-3xl border border-pink-300/20 bg-pink-500/10 p-5">
+                  <p className="text-xl font-black">Жіноча програма</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/65">
+                    GlowUp автоматично використовує жіночий режим: формули калорій,
+                    поради, фотоаналіз і тренування налаштовані під жіноче тіло.
+                  </p>
                 </div>
               )}
 
@@ -5190,6 +5646,7 @@ export default function FitnessHabitsApp() {
                   </label>
                   {[
                     ["weight", "Вага, кг", "68"],
+                    ["goalWeight", "Бажана вага, кг", "60"],
                     ["height", "Зріст, см", "170"],
                     ["age", "Вік", "22"],
                   ].map(([field, placeholder, fallback]) => (
@@ -5212,25 +5669,43 @@ export default function FitnessHabitsApp() {
               )}
 
               {onboardingStep === 4 && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {ONBOARDING_ACTIVITIES.map((activity) => (
-                    <button
-                      key={activity.key}
-                      type="button"
-                      onClick={() => updateOnboardingField("activity", activity.key)}
-                      className={`rounded-2xl border p-5 text-left transition ${
-                        onboardingData.activity === activity.key
-                          ? "border-pink-400 bg-pink-500/20"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <p className="text-lg font-black">{activity.label}</p>
-                      <p className="mt-2 text-sm text-white/55">
-                        Орієнтир: {activity.steps.toLocaleString("uk-UA")} кроків,
-                        {` ${activity.water}`} скл. води
-                      </p>
-                    </button>
-                  ))}
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {ONBOARDING_ACTIVITIES.map((activity) => (
+                      <button
+                        key={activity.key}
+                        type="button"
+                        onClick={() => updateOnboardingField("activity", activity.key)}
+                        className={`rounded-2xl border p-5 text-left transition ${
+                          onboardingData.activity === activity.key
+                            ? "border-pink-400 bg-pink-500/20"
+                            : "border-white/10 bg-white/5 hover:bg-white/10"
+                        }`}
+                      >
+                        <p className="text-lg font-black">{activity.label}</p>
+                        <p className="mt-2 text-sm text-white/55">
+                          Орієнтир: {activity.steps.toLocaleString("uk-UA")} кроків,
+                          {` ${activity.water}`} скл. води
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold text-white/60">
+                      Денна ціль кроків
+                    </span>
+                    <input
+                      type="number"
+                      min="1000"
+                      step="500"
+                      value={onboardingData.stepsGoal || ""}
+                      onChange={(event) =>
+                        updateOnboardingField("stepsGoal", event.target.value)
+                      }
+                      placeholder="Введи свою ціль"
+                      className="w-full rounded-2xl border border-white/10 bg-[#2a2542] p-4 text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                    />
+                  </label>
                 </div>
               )}
 
@@ -5341,12 +5816,18 @@ export default function FitnessHabitsApp() {
                 <button
                   type="button"
                   onClick={nextOnboardingStep}
-                  className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                  disabled={Boolean(getOnboardingStepError(onboardingStep))}
+                  className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 font-black text-white shadow-lg shadow-pink-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Далі
                 </button>
               )}
             </div>
+            {getOnboardingStepError(onboardingStep) && (
+              <p className="border-t border-white/10 px-5 py-3 text-center text-sm font-semibold text-amber-200">
+                {getOnboardingStepError(onboardingStep)}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -5355,7 +5836,7 @@ export default function FitnessHabitsApp() {
 
   return (
       <div
-        className={`theme-${appTheme} min-h-screen bg-[#08071a] p-3 text-white md:p-5`}
+        className={`theme-${appTheme} glow-app-shell min-h-screen bg-[#08071a] p-3 text-white md:p-5`}
         style={dashboardThemeStyle}
       >
         <style>{`
@@ -5374,7 +5855,7 @@ export default function FitnessHabitsApp() {
         <button
           type="button"
           onClick={() => setIsSettingsOpen(true)}
-          className="tap-anim fixed right-4 top-4 z-50 rounded-xl border border-white/10 bg-[#171430]/90 px-3 py-2 text-xs font-bold text-white shadow-xl backdrop-blur hover:-translate-y-0.5 hover:bg-white/10"
+          className={`glow-floating-settings tap-anim fixed right-4 top-4 z-50 rounded-xl border border-white/10 bg-[#171430]/90 px-3 py-2 text-xs font-bold text-white shadow-xl backdrop-blur hover:-translate-y-0.5 hover:bg-white/10 ${showQuickActions ? "pointer-events-none opacity-0" : ""}`}
           aria-label="Відкрити налаштування"
           title="Налаштування"
         >
@@ -5383,7 +5864,7 @@ export default function FitnessHabitsApp() {
         <button
           type="button"
           onClick={() => setShowProfile(true)}
-          className="tap-anim fixed right-4 top-16 z-50 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-[#171430]/90 text-white shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10"
+          className={`glow-floating-profile tap-anim fixed right-4 top-16 z-50 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-[#171430]/90 text-white shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/10 ${showQuickActions ? "pointer-events-none opacity-0" : ""}`}
           aria-label="Відкрити профіль"
           title="Профіль"
         >
@@ -5395,32 +5876,32 @@ export default function FitnessHabitsApp() {
         </button>
 
         {workoutStreakAnimation && (
-          <div className="toast-pop fixed left-1/2 top-6 z-[90] -translate-x-1/2 rounded-3xl border border-orange-300/40 bg-gradient-to-r from-pink-500 to-orange-400 px-6 py-4 text-center font-black text-white shadow-2xl shadow-pink-500/40">
+          <div className="glow-safe-toast-1 toast-pop fixed left-1/2 top-6 z-[90] -translate-x-1/2 rounded-3xl border border-orange-300/40 bg-gradient-to-r from-pink-500 to-orange-400 px-6 py-4 text-center font-black text-white shadow-2xl shadow-pink-500/40">
             🔥 Серія росте! Тренування завершено
           </div>
         )}
 
         {levelUpMessage && (
-          <div className="toast-pop fixed left-1/2 top-24 z-[95] -translate-x-1/2 rounded-3xl border border-pink-300/40 bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4 text-center font-black text-white shadow-2xl shadow-pink-500/40">
+          <div className="glow-safe-toast-2 toast-pop fixed left-1/2 top-24 z-[95] -translate-x-1/2 rounded-3xl border border-pink-300/40 bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4 text-center font-black text-white shadow-2xl shadow-pink-500/40">
             ✨ {levelUpMessage}
           </div>
         )}
 
         {achievementMessage && (
-          <div className="badge-pop fixed left-1/2 top-44 z-[95] -translate-x-1/2 rounded-3xl border border-yellow-300/40 bg-gradient-to-r from-yellow-400 to-pink-500 px-6 py-4 text-center font-black text-slate-950 shadow-2xl shadow-yellow-500/30">
+          <div className="glow-safe-toast-3 badge-pop fixed left-1/2 top-44 z-[95] -translate-x-1/2 rounded-3xl border border-yellow-300/40 bg-gradient-to-r from-yellow-400 to-pink-500 px-6 py-4 text-center font-black text-slate-950 shadow-2xl shadow-yellow-500/30">
             🏆 {achievementMessage}
           </div>
         )}
 
         {challengeMessage && (
-          <div className="badge-pop fixed left-1/2 top-64 z-[95] -translate-x-1/2 rounded-3xl border border-cyan-300/40 bg-gradient-to-r from-cyan-300 to-purple-500 px-6 py-4 text-center font-black text-white shadow-2xl shadow-cyan-500/30">
+          <div className="glow-safe-toast-4 badge-pop fixed left-1/2 top-64 z-[95] -translate-x-1/2 rounded-3xl border border-cyan-300/40 bg-gradient-to-r from-cyan-300 to-purple-500 px-6 py-4 text-center font-black text-white shadow-2xl shadow-cyan-500/30">
             🚀 {challengeMessage}
           </div>
         )}
 
         {isSettingsOpen && (
           <div
-            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-3 sm:items-center"
+            className="glow-modal-safe fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-3 sm:items-center"
             onClick={() => setIsSettingsOpen(false)}
             role="dialog"
             aria-modal="true"
@@ -5456,17 +5937,13 @@ export default function FitnessHabitsApp() {
                       <p className="text-xs text-white/45">{t("languageNote")}</p>
                     </div>
                   </div>
-                  <select
+                  <GlowSelect
                     value={appLanguage}
-                    onChange={(event) => setAppLanguage(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-white outline-none transition focus:border-pink-400"
-                  >
-                    {APP_LANGUAGES.map(([code, name]) => (
-                      <option key={code} value={code}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                    options={SUPPORTED_APP_LANGUAGES}
+                    onChange={setAppLanguage}
+                    title={t("language")}
+                    ariaLabel={t("language")}
+                  />
                 </section>
 
                 {showApiSettings && (
@@ -5528,7 +6005,7 @@ export default function FitnessHabitsApp() {
                   </div>
 
                   <div className="space-y-2">
-                    {settingsRows.map(([key, label, description, icon]) => {
+                    {cleanSettingsRows.map(([key, label, description, icon]) => {
                       const isActive = Boolean(settingsToggles[key]);
 
                       return (
@@ -5697,6 +6174,83 @@ export default function FitnessHabitsApp() {
                 </section>
 
                 <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-pink-950/20">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold">Нагадування про тренування</h3>
+                      <p className="mt-1 text-xs text-white/45">
+                        GlowUp нагадає про тренування у вибрані дні, навіть коли Android-застосунок закритий.
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${
+                        settingsToggles.workoutReminder
+                          ? "bg-pink-400 text-slate-950"
+                          : "bg-slate-700 text-white/60"
+                      }`}
+                    >
+                      {settingsToggles.workoutReminder ? "ON" : "OFF"}
+                    </span>
+                  </div>
+
+                  <label className="block text-sm font-semibold text-white/60">
+                    Час тренування
+                    <input
+                      type="time"
+                      value={workoutReminderTime}
+                      onChange={(event) => setWorkoutReminderTime(event.target.value)}
+                      onInput={(event) => setWorkoutReminderTime(event.currentTarget.value)}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-white outline-none transition focus:border-pink-300"
+                    />
+                  </label>
+
+                  <div className="mt-4">
+                    <p className="mb-2 text-sm font-semibold text-white/60">Дні нагадування</p>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {CLEAN_WORKOUT_REMINDER_DAYS.map(([day, label]) => {
+                        const selected = workoutReminderDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              setWorkoutReminderDays((days) =>
+                                selected
+                                  ? days.filter((value) => value !== day)
+                                  : [...days, day]
+                              )
+                            }
+                            className={`min-w-0 rounded-xl border px-1 py-3 text-xs font-bold transition ${
+                              selected
+                                ? "border-pink-300 bg-pink-400/20 text-pink-100"
+                                : "border-white/10 bg-white/5 text-white/55"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {settingsToggles.workoutReminder && workoutReminderDays.length === 0 && (
+                    <p className="mt-3 rounded-2xl bg-amber-400/10 p-3 text-sm text-amber-100">
+                      Обери хоча б один день для нагадування.
+                    </p>
+                  )}
+
+                  {notificationPermission === "default" && settingsToggles.workoutReminder && (
+                    <button
+                      type="button"
+                      onClick={requestNotificationPermission}
+                      className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 p-3 font-bold text-white"
+                    >
+                      Дозволити сповіщення
+                    </button>
+                  )}
+                </section>
+
+                <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4 shadow-xl shadow-pink-950/20">
                   <h3 className="mb-3 font-bold">{t("appDesign")}</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(APP_THEMES).map(([key, theme]) => (
@@ -5717,6 +6271,54 @@ export default function FitnessHabitsApp() {
                       </button>
                     ))}
                   </div>
+                </section>
+
+                <section className="rounded-[28px] border border-pink-300/15 bg-white/[0.06] p-4 shadow-xl shadow-pink-950/20">
+                  <div className="mb-3">
+                    <h3 className="font-bold">{"\u0414\u0456\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0430 \u043a\u0440\u043e\u043a\u043e\u043c\u0456\u0440\u0430"}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-white/45">
+                      {"\u0414\u0435\u043d\u043d\u0456 \u043a\u0440\u043e\u043a\u0438 \u0440\u0430\u0445\u0443\u044e\u0442\u044c\u0441\u044f \u0432\u0456\u0434 \u0431\u0430\u0437\u043e\u0432\u043e\u0433\u043e \u0437\u043d\u0430\u0447\u0435\u043d\u043d\u044f, \u0430 \u043d\u0435 \u0432\u0456\u0434 \u043f\u043e\u0432\u043d\u043e\u0433\u043e \u0441\u0438\u0441\u0442\u0435\u043c\u043d\u043e\u0433\u043e \u043b\u0456\u0447\u0438\u043b\u044c\u043d\u0438\u043a\u0430."}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {[
+                      ["sensorTotalSteps", Number(stepsSensorStatus?.sensorTotalSteps) || 0],
+                      ["baselineSteps", Number(stepsSensorStatus?.baselineSteps) || 0],
+                      ["stepsToday", Number(stepsSensorStatus?.stepsToday) || 0],
+                      ["stepsDate", stepsSensorStatus?.stepsDate || "\u2014"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0 rounded-2xl bg-white/5 p-3">
+                        <p className="break-all text-white/45">{label}</p>
+                        <p className="mt-1 break-all font-black text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => syncAndroidSteps()}
+                      disabled={!hasNativeStepCounter()}
+                      className="rounded-2xl border border-white/10 bg-white/10 p-3 font-bold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {"\u041e\u043d\u043e\u0432\u0438\u0442\u0438 \u0434\u0430\u043d\u0456"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={calibrateAndroidSteps}
+                      disabled={!hasNativeStepCounter()}
+                      className="rounded-2xl bg-pink-500/20 p-3 font-bold text-pink-100 transition hover:bg-pink-500/30 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {"\u0421\u043a\u0438\u043d\u0443\u0442\u0438 \u043a\u0440\u043e\u043a\u0438"}
+                    </button>
+                  </div>
+
+                  {stepsSourceMessage && (
+                    <p className="mt-3 rounded-2xl bg-white/5 p-3 text-xs leading-relaxed text-white/60">
+                      {stepsSourceMessage}
+                    </p>
+                  )}
                 </section>
 
                 <section className="rounded-[28px] border border-cyan-300/15 bg-white/[0.06] p-4 shadow-xl shadow-cyan-950/20">
@@ -5930,7 +6532,149 @@ export default function FitnessHabitsApp() {
 
         {showProfile && (
           <div
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-3 sm:items-center"
+            className="glow-modal-safe fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-3 sm:items-center"
+            onClick={() => setShowProfile(false)}
+          >
+            <div
+              className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#15122d] p-5 text-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-black">Мій профіль</h2>
+                  <p className="text-sm text-white/60">Дані для персонального плану GlowUp</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Закрити"
+                  onClick={() => setShowProfile(false)}
+                  className="h-10 w-10 shrink-0 rounded-full bg-white/10 text-xl text-white"
+                >
+                  ×
+                </button>
+              </div>
+
+              <section className="rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Основне</h3>
+                <label className="mt-3 block text-xs font-bold text-white/50">
+                  Ім'я
+                  <input
+                    value={profile.name}
+                    onChange={(event) => updateProfileField("name", event.target.value)}
+                    placeholder="Як до тебе звертатися"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                  />
+                </label>
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-bold text-white/50">Стать</p>
+                  <div className="rounded-2xl border border-pink-300/15 bg-pink-500/10 p-3 text-sm text-white/70">
+                    <span className="font-bold text-white">Жінка</span>
+                    <span className="mt-1 block text-xs text-white/45">
+                      Поточна версія GlowUp створена для жіночого здоров'я та фітнесу.
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <section className="mt-3 rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Параметри тіла</h3>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {[
+                    ["age", "Вік", "22", "1"],
+                    ["height", "Зріст, см", "165", "1"],
+                    ["startWeight", "Стартова вага", "65", "0.1"],
+                    ["weight", "Вага зараз", "62", "0.1"],
+                  ].map(([field, label, placeholder, step]) => (
+                    <label key={field} className="min-w-0 text-xs font-bold text-white/50">
+                      {label}
+                      <input
+                        value={profile[field] || ""}
+                        onChange={(event) => updateProfileField(field, event.target.value)}
+                        placeholder={placeholder}
+                        type="number"
+                        step={step}
+                        className="mt-2 w-full min-w-0 rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/25 focus:border-pink-400"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mt-3 rounded-[28px] border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="font-bold">Моя ціль</h3>
+                <label className="mt-3 block text-xs font-bold text-white/50">
+                  Бажана вага, кг
+                  <input
+                    value={profile.goalWeight}
+                    onChange={(event) => updateProfileField("goalWeight", event.target.value)}
+                    placeholder="Введи бажану вагу"
+                    type="number"
+                    step="0.1"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/35 focus:border-pink-400"
+                  />
+                </label>
+                <div className="mt-4 grid gap-2">
+                  {CLEAN_PROFILE_GOAL_OPTIONS.map(([goal, description]) => {
+                    const selected = profile.goal === goal;
+                    return (
+                      <button
+                        key={goal}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => updateProfileField("goal", goal)}
+                        className={`flex min-w-0 items-center justify-between gap-3 rounded-2xl border p-3 text-left transition ${
+                          selected
+                            ? "border-pink-300 bg-gradient-to-r from-pink-500/30 to-orange-400/20 text-white"
+                            : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-bold">{goal}</span>
+                          <span className="mt-1 block text-xs font-normal text-white/45">{description}</span>
+                        </span>
+                        <span
+                          className={`h-5 w-5 shrink-0 rounded-full border-2 ${
+                            selected
+                              ? "border-pink-300 bg-pink-400 shadow-[inset_0_0_0_4px_#15122d]"
+                              : "border-white/25"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <div className="my-3 rounded-2xl border border-purple-400/20 bg-white/5 p-4 text-sm">
+                <p className="font-bold text-pink-200">Після збереження</p>
+                <p className="mt-1 leading-relaxed text-white/70">
+                  {personalPlan.hasProfileData
+                    ? `GlowUp розрахує орієнтир близько ${caloriesGoal} ккал і підкаже, над чим працювати: ${personalPlan.workMore}`
+                    : "Заповни зріст, поточну й бажану вагу, щоб GlowUp створив персональний план."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveProfile}
+                className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 p-3 font-semibold text-white shadow-lg shadow-pink-500/20"
+              >
+                Зберегти
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProfile(false)}
+                className="mt-2 w-full rounded-xl p-3 text-white/60 transition hover:bg-white/5"
+              >
+                Закрити
+              </button>
+            </div>
+          </div>
+        )}
+
+        {false && showProfile && (
+          <div
+            className="glow-modal-safe fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-3 sm:items-center"
             onClick={() => setShowProfile(false)}
           >
             <div
@@ -5967,31 +6711,11 @@ export default function FitnessHabitsApp() {
 
                 <div className="mt-4">
                   <p className="mb-2 text-xs font-bold text-white/50">Стать</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      ["female", "Жінка", "Жіноча програма"],
-                      ["male", "Чоловік", "Чоловіча програма"],
-                    ].map(([value, label, description]) => {
-                      const selected = profile.gender === value;
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => updateProfileField("gender", value)}
-                          className={`min-w-0 rounded-2xl border p-3 text-left transition ${
-                            selected
-                              ? "border-pink-300 bg-gradient-to-r from-pink-500/30 to-orange-400/20 text-white shadow-lg shadow-pink-950/20"
-                              : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
-                          }`}
-                        >
-                          <span className="block font-bold">{label}</span>
-                          <span className="mt-1 block text-xs font-normal text-white/45">
-                            {description}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  <div className="rounded-2xl border border-pink-300/15 bg-pink-500/10 p-3 text-sm leading-relaxed text-white/70">
+                    <span className="font-bold text-white">Жінка</span>
+                    <span className="mt-1 block text-xs text-white/45">
+                      У цій версії GlowUp працює як жіночий fitness-app. Чоловічий режим прихований і може повернутися пізніше.
+                    </span>
                   </div>
                 </div>
               </section>
@@ -6027,7 +6751,7 @@ export default function FitnessHabitsApp() {
                   <input
                     value={profile.goalWeight}
                     onChange={(event) => updateProfileField("goalWeight", event.target.value)}
-                    placeholder="Наприклад: 55"
+                    placeholder="Введи бажану вагу"
                     type="number"
                     step="0.1"
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-base text-white outline-none placeholder:text-white/35 focus:border-pink-400"
@@ -6035,13 +6759,7 @@ export default function FitnessHabitsApp() {
                 </label>
 
                 <div className="mt-4 grid gap-2">
-                  {[
-                    ["Схуднути", "Зменшити вагу поступово"],
-                    ["Підтягнути тіло", "Більше тонусу й сили"],
-                    ["Набрати м'язи", "Розвивати силу та м'язи"],
-                    ["Виправити поставу", "Спина, мобільність і баланс"],
-                    ["Покращити здоров'я", "Сон, рух і корисні звички"],
-                  ].map(([goal, description]) => {
+                  {CLEAN_PROFILE_GOAL_OPTIONS.map(([goal, description]) => {
                     const selected = profile.goal === goal;
                     return (
                       <button
@@ -6101,6 +6819,66 @@ export default function FitnessHabitsApp() {
         )}
 
         {cameraStream && (
+          <div
+            className="glow-modal-safe fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+            onClick={stopCamera}
+          >
+            <div
+              className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#15122d] p-4 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold">
+                    {cameraTarget === "food"
+                      ? "Камера їжі"
+                      : cameraTarget === "before"
+                        ? "Фото до"
+                        : "Фото після"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-white/55">
+                    {cameraTarget === "food"
+                      ? "Зроби чітке фото страви, щоб GlowUp міг оцінити її склад і калорійність."
+                      : "Зроби фото прогресу в однаковому освітленні та ракурсі для коректного порівняння."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Закрити камеру"
+                  onClick={stopCamera}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="max-h-[62vh] w-full rounded-2xl bg-black object-cover"
+              />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={takePhoto}
+                  className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold"
+                >
+                  Зробити фото
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="rounded-2xl bg-white/10 p-4 font-bold"
+                >
+                  Скасувати
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {false && cameraStream && (
           <div
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
             onClick={stopCamera}
@@ -6184,6 +6962,92 @@ export default function FitnessHabitsApp() {
 
         {openedDish && (
           <div
+            className="glow-modal-safe fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 sm:items-center"
+            onClick={() => setOpenedDish(null)}
+          >
+            <div
+              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-[#15122d] text-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="relative">
+                <img
+                  src={openedDish.image}
+                  alt={openedDish.title || "Фото страви"}
+                  className="h-64 w-full rounded-t-3xl object-cover"
+                />
+                <button
+                  type="button"
+                  aria-label="Закрити рецепт"
+                  onClick={() => setOpenedDish(null)}
+                  className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/60 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-5">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-2xl font-black">{openedDish.title}</h2>
+                    <p className="mt-1 text-pink-300">
+                      {openedDish.calories || "Корисна страва"}
+                      {openedDish.time ? ` • ${openedDish.time}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCalories((value) => value + (Number.parseInt(openedDish.calories, 10) || 0));
+                      setOpenedDish(null);
+                    }}
+                    className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-3 font-bold"
+                  >
+                    Додати калорії
+                  </button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <section className="rounded-2xl bg-white/5 p-4">
+                    <h3 className="mb-3 font-bold">Склад</h3>
+                    {(openedDish.ingredients || []).length ? (
+                      <ul className="space-y-2 text-sm text-white/80">
+                        {openedDish.ingredients.map((ingredient) => (
+                          <li key={ingredient} className="flex gap-2">
+                            <span className="text-pink-300">•</span>
+                            <span>{ingredient}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-white/50">Склад не вказаний.</p>
+                    )}
+                  </section>
+
+                  <section className="rounded-2xl bg-white/5 p-4">
+                    <h3 className="mb-3 font-bold">Як приготувати</h3>
+                    {(openedDish.steps || []).length ? (
+                      <ol className="space-y-3 text-sm text-white/80">
+                        {openedDish.steps.map((step, index) => (
+                          <li key={`${index}-${step}`} className="flex gap-3">
+                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-pink-500 text-xs font-bold">
+                              {index + 1}
+                            </span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-sm text-white/50">Спосіб приготування не вказаний.</p>
+                    )}
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {false && openedDish && (
+          <div
             className="fixed inset-0 z-[75] flex items-end justify-center bg-black/70 p-3 sm:items-center"
             onClick={() => setOpenedDish(null)}
           >
@@ -6261,6 +7125,78 @@ export default function FitnessHabitsApp() {
 
         {openedWorkout && (
           <div
+            className="glow-modal-safe fixed inset-0 z-[75] flex items-end justify-center bg-black/75 p-3 sm:items-center"
+            onClick={() => setOpenedWorkout(null)}
+          >
+            <div
+              className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#15122d] text-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-black">{openedWorkout.title}</h2>
+                  <p className="mt-1 text-sm text-white/55">{openedWorkout.meta}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Закрити тренування"
+                  onClick={() => setOpenedWorkout(null)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="aspect-video bg-black">
+                <iframe
+                  className="h-full w-full"
+                  src={openedWorkout.videoUrl}
+                  title={openedWorkout.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+
+              <div className="grid gap-3 border-t border-white/10 p-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => startNewWorkoutTimer({ closeVideo: true })}
+                  className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                >
+                  Запустити таймер на {selectedMinutes} хв
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenedWorkout(null)}
+                  className="rounded-2xl bg-white/10 px-4 py-3 font-black text-white transition hover:bg-white/15"
+                >
+                  Закрити відео
+                </button>
+              </div>
+
+              <div className="grid gap-3 p-4 sm:grid-cols-3">
+                {WORKOUT_CARDS.map((item, index) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => openWorkoutVideo(item, index)}
+                    className={`rounded-2xl border p-3 text-left text-sm transition ${
+                      openedWorkout.title === item.title
+                        ? "border-pink-400 bg-pink-500/15"
+                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <p className="font-bold">{item.title}</p>
+                    <p className="mt-1 text-white/50">{item.time}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {false && openedWorkout && (
+          <div
             className="fixed inset-0 z-[75] flex items-end justify-center bg-black/75 p-3 sm:items-center"
             onClick={() => setOpenedWorkout(null)}
           >
@@ -6290,12 +7226,28 @@ export default function FitnessHabitsApp() {
                   allowFullScreen
                 />
               </div>
+              <div className="grid gap-3 border-t border-white/10 p-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => startNewWorkoutTimer({ closeVideo: true })}
+                  className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                >
+                  Запустити таймер на {selectedMinutes} хв
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenedWorkout(null)}
+                  className="rounded-2xl bg-white/10 px-4 py-3 font-black text-white transition hover:bg-white/15"
+                >
+                  Закрити відео
+                </button>
+              </div>
               <div className="grid gap-3 p-4 sm:grid-cols-3">
-                {WORKOUT_CARDS.map((item) => (
+                {WORKOUT_CARDS.map((item, index) => (
                   <button
                     key={item.title}
                     type="button"
-                    onClick={() => setOpenedWorkout(item)}
+                    onClick={() => openWorkoutVideo(item, index)}
                     className={`rounded-2xl border p-3 text-left text-sm transition ${
                       openedWorkout.title === item.title
                         ? "border-pink-400 bg-pink-500/15"
@@ -6311,13 +7263,12 @@ export default function FitnessHabitsApp() {
           </div>
         )}
 
-        {settingsToggles.aiCoach && (
+        {settingsToggles.aiCoach && !showQuickActions && (
           <button
             type="button"
-            onPointerDown={handleCharlieDragStart}
             onClick={() => setIsCharlieOpen((value) => !value)}
-            className="fixed z-50 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-white/20 bg-gradient-to-br from-slate-900 via-purple-700 to-pink-500 shadow-2xl"
-            style={{ left: `${charliePosition.x}px`, top: `${charliePosition.y}px` }}
+            className="glow-floating-charlie fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-white/20 bg-gradient-to-br from-slate-900 via-purple-700 to-pink-500 shadow-2xl"
+            aria-label="Відкрити Чарлі"
             title="Чарлі"
           >
             <span className="relative block h-7 w-8 rounded-xl bg-white shadow-inner">
@@ -6331,6 +7282,72 @@ export default function FitnessHabitsApp() {
         )}
 
         {settingsToggles.aiCoach && isCharlieOpen && (
+          <div
+            className="fixed inset-x-3 z-50 mx-auto flex max-h-[min(58vh,520px)] w-auto max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#15122d] shadow-2xl"
+            style={{ bottom: "calc(122px + env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-4 py-3">
+              <div>
+                <h2 className="font-bold">Чарлі</h2>
+                <p className="text-xs text-white/50">Текстовий AI-помічник</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Закрити Чарлі"
+                onClick={() => setIsCharlieOpen(false)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-lg"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
+              {charlieMessages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={
+                    message.role === "user"
+                      ? "ml-auto max-w-[82%] rounded-2xl bg-pink-500 px-4 py-3"
+                      : "mr-auto max-w-[88%] rounded-2xl bg-white/10 px-4 py-3 text-white/90"
+                  }
+                >
+                  {message.text}
+                </div>
+              ))}
+              {isCharlieThinking && (
+                <div className="mr-auto rounded-2xl bg-white/10 px-4 py-3 text-sm text-white/60">
+                  Чарлі думає...
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t border-white/10 bg-[#15122d] p-3">
+              <div className="flex gap-2 rounded-2xl bg-white/10 p-2">
+                <input
+                  value={aiQuestion}
+                  onChange={(event) => setAiQuestion(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !isCharlieThinking) askAI();
+                  }}
+                  placeholder="Напиши своє питання..."
+                  aria-label="Питання для Чарлі"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-white outline-none placeholder:text-white/45"
+                />
+                <button
+                  type="button"
+                  aria-label="Надіслати питання"
+                  onClick={() => askAI()}
+                  disabled={isCharlieThinking || !aiQuestion.trim()}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-pink-500 text-xl font-bold disabled:opacity-50"
+                >
+                  ➤
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {false && settingsToggles.aiCoach && isCharlieOpen && (
           <div
             className="fixed inset-x-3 z-50 mx-auto flex max-h-[min(58vh,520px)] w-auto max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#15122d] shadow-2xl"
             style={{ bottom: "calc(122px + env(safe-area-inset-bottom))" }}
@@ -6410,6 +7427,10 @@ export default function FitnessHabitsApp() {
                     if (index === 1) setDashboardTab("progress");
                     if (index === 2) setDashboardTab("nutrition");
                     if (index === 3) setDashboardTab("training");
+                    if (index === 4) openFeatureShortcut("habits");
+                    if (index === 5) setIsCharlieOpen(true);
+                    if (index === 6) openWorkoutVideo(selectedWorkout, selectedWorkoutIndex);
+                    if (index === 7) openRecipeLibrary();
                   }}
                   className={`flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left ${
                     (index === 0 && dashboardTab === "home") ||
@@ -6462,21 +7483,27 @@ export default function FitnessHabitsApp() {
             </p>
           </aside>
 
-          <main ref={homeTopRef} className="app-main-content min-w-0 space-y-5 overflow-x-hidden">
-            <header className="glow-card p-5 sm:p-6">
+          <main ref={homeTopRef} className="app-main-content home-screen-content min-w-0 space-y-5 overflow-x-hidden">
+            <header className="home-greeting-card glow-card p-4 sm:p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Привіт, {profileName}! 👋</h2>
-                  <p className="mt-2 text-white/65">
+                  <h2 className="text-[1.7rem] font-black leading-tight sm:text-3xl">Привіт, {profileName}! 👋</h2>
+                  <p className="mt-1.5 text-white/65">
                     {t("greetingSub")} 💖
                   </p>
                 </div>
-                <div className="relative text-3xl">
+                <button
+                  type="button"
+                  onClick={() => setDashboardTab("progress")}
+                  className="relative hidden shrink-0 text-3xl sm:block"
+                  aria-label="Відкрити прогрес і досягнення"
+                  title="Прогрес і досягнення"
+                >
                   ♧
                   <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-pink-500 text-xs">
                     3
                   </span>
-                </div>
+                </button>
               </div>
             </header>
 
@@ -6550,19 +7577,24 @@ export default function FitnessHabitsApp() {
                   <div className="min-w-0">
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200/70">Центр функцій</p>
                     <h3 className="mt-1 text-2xl font-black text-white">Швидкий доступ</h3>
+                    <p className="mt-2 text-sm text-white/55">Усі важливі трекери в одному місці: натисни картку і GlowUp відкриє потрібний розділ.</p>
+                  </div>
+                  <div className="hidden">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200/70">Центр функцій</p>
+                    <h3 className="mt-1 text-2xl font-black text-white">Швидкий доступ</h3>
                     <p className="mt-2 text-sm text-white/55">Усі важливі трекери в одному місці, без довгого пошуку по сторінці.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                  {featureShortcuts.map((item) => (
+                  {featureShortcutCards.map((item) => (
                     <button
                       key={item.target}
                       type="button"
                       onClick={() => openFeatureShortcut(item.target)}
                       className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.055] p-3 text-left transition hover:-translate-y-0.5 hover:bg-white/10"
                     >
-                      <span className={`grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br ${item.accent} text-xs font-black text-white shadow-lg`}>
+                      <span className={`grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br ${item.accent} text-xl font-black text-white shadow-lg`}>
                         {item.icon}
                       </span>
                       <span className="mt-3 block truncate text-sm font-bold text-white">{item.label}</span>
@@ -6808,8 +7840,8 @@ export default function FitnessHabitsApp() {
                   {[
                     ["\u041a\u0440\u043e\u043a\u0438", steps.toLocaleString("uk-UA"), `${stepsProgress}% \u0432\u0456\u0434 \u0446\u0456\u043b\u0456`, "??", stepsProgress],
                     ["\u0414\u0438\u0441\u0442\u0430\u043d\u0446\u0456\u044f", `${stepsDistanceKm} \u043a\u043c`, "\u041f\u0440\u0438\u0431\u043b\u0438\u0437\u043d\u043e \u0437\u0430 \u0441\u044c\u043e\u0433\u043e\u0434\u043d\u0456", "??", stepsProgress],
-                    ["\u0421\u0435\u0440\u0435\u0434\u043d\u0454", stepsAverage7Days.toLocaleString("uk-UA"), `${stepsAverageDistanceKm} \u043a\u043c / \u0434\u0435\u043d\u044c`, "??", Math.min(Math.round((stepsAverage7Days / stepsGoal) * 100), 100)],
-                    ["\u041d\u0430\u0439\u043a\u0440\u0430\u0449\u0438\u0439 \u0434\u0435\u043d\u044c", stepsBest7Days.toLocaleString("uk-UA"), "\u0437\u0430 \u043e\u0441\u0442\u0430\u043d\u043d\u0456 7 \u0434\u043d\u0456\u0432", "??", Math.min(Math.round((stepsBest7Days / stepsGoal) * 100), 100)],
+                    ["\u0421\u0435\u0440\u0435\u0434\u043d\u0454", stepsAverage7Days.toLocaleString("uk-UA"), `${stepsAverageDistanceKm} \u043a\u043c / \u0434\u0435\u043d\u044c`, "??", stepsGoal > 0 ? Math.min(Math.round((stepsAverage7Days / stepsGoal) * 100), 100) : 0],
+                    ["\u041d\u0430\u0439\u043a\u0440\u0430\u0449\u0438\u0439 \u0434\u0435\u043d\u044c", stepsBest7Days.toLocaleString("uk-UA"), "\u0437\u0430 \u043e\u0441\u0442\u0430\u043d\u043d\u0456 7 \u0434\u043d\u0456\u0432", "??", stepsGoal > 0 ? Math.min(Math.round((stepsBest7Days / stepsGoal) * 100), 100) : 0],
                     ["\u0412\u043e\u0434\u0430", `${waterConsumedMl} \u043c\u043b`, `${waterConsumedMl} / ${waterGoal} \u043c\u043b`, "??", waterProgress],
                   ].map(([title, value, subtitle, icon, progress]) => (
                     <div key={title} className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
@@ -6863,6 +7895,23 @@ export default function FitnessHabitsApp() {
                       <p className="text-xs text-white/45">{formatOneDecimal((stepsBest7Days * stepStrideMeters) / 1000)}{" \u043a\u043c"}</p>
                     </div>
                   </div>
+
+                  {stepsSensorStatus?.native && !stepsSensorStatus.permissionGranted && (
+                    <div className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4">
+                      <p className="font-black text-amber-100">Увімкни автоматичний підрахунок кроків</p>
+                      <p className="mt-1 text-sm leading-relaxed text-amber-50/75">
+                        GlowUp потрібен Android-дозвіл «Фізична активність». Без нього кроки
+                        залишатимуться на нулі, але ручне введення продовжує працювати.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={enableAndroidSteps}
+                        className="mt-3 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
+                      >
+                        Дозволити фізичну активність
+                      </button>
+                    </div>
+                  )}
 
                   <div className="mt-4 rounded-3xl bg-[#111026] p-3">
                     <div className="flex h-32 items-end gap-2 overflow-hidden">
@@ -6918,7 +7967,7 @@ export default function FitnessHabitsApp() {
                         {stepsSensorStatus?.native && !stepsSensorStatus.permissionGranted && (
                           <button
                             type="button"
-                            onClick={openStepsPermissionSettings}
+                            onClick={enableAndroidSteps}
                             className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2 font-bold text-white shadow-lg shadow-pink-500/20 sm:col-span-2"
                           >
                             Дозволити фізичну активність
@@ -6937,7 +7986,7 @@ export default function FitnessHabitsApp() {
                             onClick={calibrateAndroidSteps}
                             className="rounded-2xl bg-pink-500/20 px-4 py-2 font-bold text-pink-100 transition hover:bg-pink-500/30"
                           >
-                            {"\u041a\u0430\u043b\u0456\u0431\u0440\u0443\u0432\u0430\u0442\u0438"}
+                            {"\u0421\u043a\u0438\u043d\u0443\u0442\u0438 \u043a\u0440\u043e\u043a\u0438"}
                           </button>
                         )}
                       </div>
@@ -7049,21 +8098,10 @@ export default function FitnessHabitsApp() {
                     </div>
 
                     <div className="mb-4 rounded-2xl bg-white/5 p-4 text-sm text-white/75">
-                      {profile.gender === "female" ? (
-                        <p>
-                          Програма враховує жіноче тіло: талію, ноги, сідниці,
-                          поставу, воду і зміни ваги.
-                        </p>
-                      ) : profile.gender === "male" ? (
-                        <p>
-                          Програма враховує чоловіче тіло: плечі, груди, силу,
-                          м'язи і відсоток жиру.
-                        </p>
-                      ) : (
-                        <p>
-                          Обери стать у профілі, щоб фотоаналіз став персональнішим.
-                        </p>
-                      )}
+                      <p>
+                        Програма враховує жіноче тіло: талію, ноги, сідниці,
+                        поставу, воду і зміни ваги. Результат орієнтовний і не є медичним висновком.
+                      </p>
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
@@ -7152,7 +8190,6 @@ export default function FitnessHabitsApp() {
                       onClick={analyzeBodyPhoto}
                       disabled={
                         !Object.values({ ...bodyPhotos, front: bodyPhotos.front || bodyPhoto }).some(Boolean)
-                        || !profile.gender
                         || bodyAnalysisLoading
                       }
                       className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold disabled:cursor-not-allowed disabled:from-gray-600 disabled:to-gray-700"
@@ -7166,11 +8203,6 @@ export default function FitnessHabitsApp() {
                       </p>
                     )}
 
-                    {!profile.gender && (
-                      <p className="mt-3 text-sm text-white/45">
-                        Спочатку обери стать у профілі, щоб аналіз був точнішим.
-                      </p>
-                    )}
                   </div>
 
                   <div className="glow-card rounded-3xl border border-white/10 bg-[#171430] p-5 sm:p-6">
@@ -7232,7 +8264,7 @@ export default function FitnessHabitsApp() {
                         <p className="text-5xl">🧍</p>
                         <h3 className="mt-4 text-2xl font-black">Тут з'явиться аналіз</h3>
                         <p className="mt-3 text-white/55">
-                          Завантаж фото, обери стать у профілі та натисни аналіз.
+                          Завантаж фото та натисни аналіз.
                           GlowUp покаже Body Score, можливі зони уваги і вправи.
                         </p>
                       </div>
@@ -7811,18 +8843,14 @@ export default function FitnessHabitsApp() {
                           </div>
                         </div>
                       </div>
-                      <select
+                      <GlowSelect
                         value={manualFood.meal}
-                        onChange={(event) =>
-                          setManualFood((food) => ({ ...food, meal: event.target.value }))
+                        options={CLEAN_FOOD_MEAL_OPTIONS.slice(1)}
+                        onChange={(meal) =>
+                          setManualFood((food) => ({ ...food, meal }))
                         }
-                        className="rounded-2xl border border-white/10 bg-[#0b1022] p-3 text-white outline-none"
-                      >
-                        <option value="сніданок">Сніданок</option>
-                        <option value="обід">Обід</option>
-                        <option value="вечеря">Вечеря</option>
-                        <option value="перекус">Перекус</option>
-                      </select>
+                        title="Прийом їжі"
+                      />
                       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                         {[
                           ["calories", "Калорії"],
@@ -8187,22 +9215,18 @@ export default function FitnessHabitsApp() {
                                         className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-white/10 p-3 text-white outline-none"
                                       />
                                     </label>
-                                    <label className="min-w-0 text-xs font-bold text-white/55">
+                                    <div className="min-w-0 text-xs font-bold text-white/55">
                                       Прийом їжі
-                                      <select
+                                      <GlowSelect
                                         value={foodDiaryEditForm.meal}
-                                        onChange={(event) =>
-                                          setFoodDiaryEditForm((form) => ({ ...form, meal: event.target.value }))
+                                        options={CLEAN_FOOD_MEAL_OPTIONS}
+                                        onChange={(meal) =>
+                                          setFoodDiaryEditForm((form) => ({ ...form, meal }))
                                         }
-                                        className="mt-1 w-full min-w-0 rounded-xl border border-white/10 bg-[#24203f] p-3 text-white outline-none"
-                                      >
-                                        <option value="">Не вказано</option>
-                                        <option value="сніданок">Сніданок</option>
-                                        <option value="обід">Обід</option>
-                                        <option value="вечеря">Вечеря</option>
-                                        <option value="перекус">Перекус</option>
-                                      </select>
-                                    </label>
+                                        title="Прийом їжі"
+                                        className="mt-1 bg-[#24203f]"
+                                      />
+                                    </div>
                                     <label className="min-w-0 text-xs font-bold text-white/55">
                                       Грами
                                       <input
@@ -8748,7 +9772,7 @@ export default function FitnessHabitsApp() {
                     <h3 className="mb-5 text-xl font-bold">{t("chooseWorkout")}</h3>
                     <button
                       type="button"
-                      onClick={() => setOpenedWorkout(selectedWorkout)}
+                      onClick={() => openWorkoutVideo(selectedWorkout, selectedWorkoutIndex)}
                       className="relative block w-full overflow-hidden rounded-2xl text-left"
                     >
                       <img
@@ -8770,14 +9794,14 @@ export default function FitnessHabitsApp() {
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <button
                         type="button"
-                        onClick={() => setOpenedWorkout(selectedWorkout)}
+                        onClick={() => openWorkoutVideo(selectedWorkout, selectedWorkoutIndex)}
                         className="rounded-2xl bg-white/10 px-4 py-3 font-black text-white transition hover:bg-white/15"
                       >
                         Дивитись відео
                       </button>
                       <button
                         type="button"
-                        onClick={startNewWorkoutTimer}
+                        onClick={() => startNewWorkoutTimer()}
                         className="rounded-2xl bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-3 font-black text-white shadow-lg shadow-pink-500/20"
                       >
                         Запустити таймер
@@ -8788,7 +9812,7 @@ export default function FitnessHabitsApp() {
                         <button
                           key={item.title}
                           type="button"
-                          onClick={() => setSelectedWorkoutIndex(index)}
+                          onClick={() => selectVideoWorkout(item, index)}
                           className={`overflow-hidden rounded-2xl border text-left ${
                             selectedWorkoutIndex === index ? "border-pink-400" : "border-white/10"
                           }`}
@@ -8818,7 +9842,9 @@ export default function FitnessHabitsApp() {
                     </div>
                     <div className="mt-6 grid grid-cols-3 gap-3">
                       <button onClick={() => changeTimerMinutes(Math.max(selectedMinutes - 5, 5))} className="rounded-2xl bg-white/10 p-4 text-2xl">−</button>
-                      <button onClick={startNewWorkoutTimer} className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold">Старт відео</button>
+                      <button onClick={() => startNewWorkoutTimer()} className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 p-4 font-bold">
+                        {isTimerRunning ? "Таймер працює" : "Запустити"}
+                      </button>
                       <button onClick={() => changeTimerMinutes(selectedMinutes + 5)} className="rounded-2xl bg-white/10 p-4 text-2xl">+</button>
                     </div>
                     <button onClick={resetTimer} className="mt-3 w-full rounded-2xl bg-white/10 p-4 font-bold">
@@ -9018,18 +10044,26 @@ export default function FitnessHabitsApp() {
 
                   <div className="rounded-2xl bg-black/20 p-3">
                     <p className="text-sm text-white/45">Ціль</p>
-                    <p className="text-xl font-bold">{goalWeight} кг</p>
+                    <p className="text-xl font-bold">
+                      {hasGoalWeight ? `${goalWeight} кг` : "Не задано"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-purple-600 p-4 text-center">
-                  <p className="text-lg font-semibold">{goalDirectionLabel}:</p>
-                  <p className="text-3xl font-black">{remainingToGoal} кг</p>
+                  <p className="text-lg font-semibold">
+                    {hasGoalWeight ? `${goalDirectionLabel}:` : "Додай бажану вагу"}
+                  </p>
+                  <p className="text-3xl font-black">
+                    {hasGoalWeight ? `${remainingToGoal} кг` : "—"}
+                  </p>
                 </div>
 
                 <div className="mt-5 rounded-2xl bg-black/20 p-4">
                   <p className="text-center text-sm text-white/70">
-                    Ти вже пройшла {weightGoalProgress}% шляху. Продовжуй рухатися до своєї цілі 💜
+                    {hasGoalWeight
+                      ? `Ти вже пройшла ${weightGoalProgress}% шляху. Продовжуй рухатися до своєї цілі 💜`
+                      : "Вкажи бажану вагу в профілі, щоб GlowUp почав рахувати прогрес."}
                   </p>
                 </div>
               </div>
@@ -9286,7 +10320,7 @@ export default function FitnessHabitsApp() {
                   <div className="min-w-0 sm:col-span-2">
                     <span className="mb-2 block text-xs font-bold text-white/55">Настрій сьогодні</span>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                      {CYCLE_MOOD_OPTIONS.filter((option) => option.value).map((option) => {
+                      {CLEAN_CYCLE_MOOD_OPTIONS.filter((option) => option.value).map((option) => {
                         const selected = cycleTracker.mood === option.value;
                         return (
                           <button
@@ -9335,7 +10369,7 @@ export default function FitnessHabitsApp() {
                   <div className="min-w-0 sm:col-span-2">
                     <p className="mb-2 text-xs font-bold text-white/55">Симптоми</p>
                     <div className="flex flex-wrap gap-2">
-                      {CYCLE_SYMPTOM_OPTIONS.map((option) => {
+                      {CLEAN_CYCLE_SYMPTOM_OPTIONS.map((option) => {
                         const selected = Array.isArray(cycleTracker.symptoms)
                           && cycleTracker.symptoms.includes(option.value);
 
@@ -9488,7 +10522,7 @@ export default function FitnessHabitsApp() {
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           {entry.mood && (
                             <span className="rounded-xl bg-purple-500/15 px-2 py-1 text-purple-100">
-                              {CYCLE_MOOD_OPTIONS.find((option) => option.value === entry.mood)?.label || entry.mood}
+                              {CLEAN_CYCLE_MOOD_OPTIONS.find((option) => option.value === entry.mood)?.label || entry.mood}
                             </span>
                           )}
                           {Number(entry.painLevel) > 0 && (
@@ -9498,7 +10532,7 @@ export default function FitnessHabitsApp() {
                           )}
                           {(Array.isArray(entry.symptoms) ? entry.symptoms : []).map((symptom) => (
                             <span key={symptom} className="rounded-xl bg-white/10 px-2 py-1 text-white/65">
-                              {CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === symptom)?.label || symptom}
+                              {CLEAN_CYCLE_SYMPTOM_OPTIONS.find((option) => option.value === symptom)?.label || symptom}
                             </span>
                           ))}
                         </div>
@@ -9525,7 +10559,7 @@ export default function FitnessHabitsApp() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOpenedWorkout(selectedWorkout)}
+                  onClick={() => openWorkoutVideo(selectedWorkout, selectedWorkoutIndex)}
                   className="relative block w-full overflow-hidden rounded-2xl text-left"
                 >
                   <img
@@ -9545,7 +10579,7 @@ export default function FitnessHabitsApp() {
                     <button
                       key={item.title}
                       type="button"
-                      onClick={() => setSelectedWorkoutIndex(index)}
+                      onClick={() => selectVideoWorkout(item, index)}
                       aria-label={`Обрати тренування: ${item.title}`}
                       className={`overflow-hidden rounded-xl border ${
                         selectedWorkoutIndex === index
@@ -9567,17 +10601,31 @@ export default function FitnessHabitsApp() {
                   </div>
                   <button
                     type="button"
-                    onClick={startNewWorkoutTimer}
+                    onClick={() => startNewWorkoutTimer()}
                     className="text-purple-300"
                   >
-                    Старт відео +
+                    Запустити таймер
                   </button>
                 </div>
-                <div className="mb-5 grid grid-cols-5 gap-2 rounded-2xl bg-white/5 p-2 text-center text-sm">
-                  {["HIIT", "Сила", "Йога", "Розтяжка", "Кардіо"].map((tab, index) => (
-                    <span key={tab} className={`rounded-xl py-2 ${index === 0 ? "bg-white/10" : ""}`}>
-                      {tab}
-                    </span>
+                <div className="mb-5 grid grid-cols-5 gap-1 rounded-2xl bg-white/5 p-2 text-center text-xs sm:gap-2 sm:text-sm">
+                  {FREE_TIMER_PRESETS.map((preset) => (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      aria-pressed={selectedTimerPreset === preset.key}
+                      onClick={() => {
+                        setSelectedTimerPreset(preset.key);
+                        changeTimerMinutes(preset.minutes);
+                      }}
+                      className={`min-w-0 rounded-xl px-1 py-2 transition ${
+                        selectedTimerPreset === preset.key
+                          ? "bg-pink-500 font-bold text-white"
+                          : "text-white/55 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="block truncate">{preset.label}</span>
+                      <span className="mt-0.5 block text-[10px] opacity-60">{preset.minutes} хв</span>
+                    </button>
                   ))}
                 </div>
                 <div className="grid grid-cols-[56px_1fr_56px] items-center gap-5">
@@ -9605,10 +10653,10 @@ export default function FitnessHabitsApp() {
                 </div>
                 <div className="mt-6 grid grid-cols-[1fr_80px] gap-4">
                   <button
-                    onClick={startNewWorkoutTimer}
+                    onClick={() => startNewWorkoutTimer()}
                     className="rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 py-4 text-lg font-bold"
                   >
-                    ▶ Старт відео
+                    {isTimerRunning ? "Таймер працює" : "Запустити таймер"}
                   </button>
                   <button onClick={resetTimer} className="rounded-2xl bg-white/10 text-3xl">
                     ↻
@@ -9772,6 +10820,19 @@ export default function FitnessHabitsApp() {
                     className="tap-anim rounded-2xl bg-white/10 p-3 text-left font-semibold hover:bg-white/15"
                   >
                     Додати їжу вручну
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDashboardTab("nutrition");
+                      setShowQuickActions(false);
+                      window.setTimeout(() => scanFoodBarcode(), 120);
+                    }}
+                    disabled={isBarcodeScanning || barcodeLookupLoading}
+                    className="tap-anim rounded-2xl border border-cyan-300/25 bg-cyan-400/10 p-3 text-left font-semibold text-cyan-50 hover:bg-cyan-400/15 disabled:opacity-55"
+                  >
+                    {isBarcodeScanning ? "Сканування..." : "Сканувати штрихкод"}
                   </button>
 
                   <button

@@ -2,10 +2,12 @@ import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 
 const CHANNEL_ID = "glowup-reminders";
+const WAKE_ALARM_CHANNEL_ID = "glowup-wake-alarm";
 const WATER_NOTIFICATION_IDS = Array.from({ length: 8 }, (_, index) => 4100 + index);
 const SLEEP_NOTIFICATION_ID = 4200;
 const WAKE_ALARM_NOTIFICATION_ID = 4210;
 const AI_COACH_NOTIFICATION_ID = 4300;
+const WORKOUT_NOTIFICATION_IDS = Array.from({ length: 7 }, (_, index) => 4401 + index);
 
 export const isCapacitorAndroid = () =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
@@ -47,11 +49,27 @@ async function ensureNotificationChannel() {
   });
 }
 
+async function ensureWakeAlarmChannel() {
+  if (!hasNativeLocalNotifications()) return;
+
+  await LocalNotifications.createChannel({
+    id: WAKE_ALARM_CHANNEL_ID,
+    name: "GlowUp wake alarm",
+    description: "Morning wake alarm with vibration",
+    importance: 5,
+    visibility: 1,
+    vibration: true,
+    lights: true,
+    lightColor: "#ec4899",
+  });
+}
+
 export async function requestAppNotificationPermission() {
   if (hasNativeLocalNotifications()) {
     const current = await LocalNotifications.checkPermissions();
     if (current.display === "granted") {
       await ensureNotificationChannel();
+      await ensureWakeAlarmChannel();
       return "granted";
     }
 
@@ -59,6 +77,7 @@ export async function requestAppNotificationPermission() {
     const permission = toAppPermission(next.display);
     if (permission === "granted") {
       await ensureNotificationChannel();
+      await ensureWakeAlarmChannel();
     }
     return permission;
   }
@@ -171,6 +190,47 @@ export async function scheduleNativeSleepReminder({ enabled, reminderTime, sleep
   });
 }
 
+export async function scheduleNativeWorkoutReminders({
+  enabled,
+  reminderTime,
+  weekdays,
+}) {
+  if (!hasNativeLocalNotifications()) return;
+
+  await cancelNativeNotifications(WORKOUT_NOTIFICATION_IDS);
+  if (!enabled || !weekdays?.length) return;
+
+  const permission = await getAppNotificationPermission();
+  if (permission !== "granted") return;
+
+  const [hour, minute] = String(reminderTime || "18:00")
+    .split(":")
+    .map((value) => Number(value));
+  const safeHour = Number.isFinite(hour) ? hour : 18;
+  const safeMinute = Number.isFinite(minute) ? minute : 0;
+
+  await ensureNotificationChannel();
+  await LocalNotifications.schedule({
+    notifications: weekdays.map((weekday, index) => ({
+      id: WORKOUT_NOTIFICATION_IDS[index],
+      title: "Час тренування",
+      body: "Твоє тренування GlowUp готове. Почни з розминки й рухайся у своєму темпі.",
+      channelId: CHANNEL_ID,
+      autoCancel: true,
+      schedule: {
+        on: {
+          weekday: Number(weekday),
+          hour: safeHour,
+          minute: safeMinute,
+        },
+        repeats: true,
+        allowWhileIdle: true,
+      },
+      extra: { type: "workout-reminder" },
+    })),
+  });
+}
+
 export async function scheduleNativeWakeAlarm({ enabled, wakeTime }) {
   if (!hasNativeLocalNotifications()) return { scheduled: false };
 
@@ -188,23 +248,18 @@ export async function scheduleNativeWakeAlarm({ enabled, wakeTime }) {
     return { scheduled: false };
   }
 
-  const scheduledAt = new Date();
-  scheduledAt.setHours(hour, minute, 0, 0);
-  if (scheduledAt.getTime() <= Date.now()) {
-    scheduledAt.setDate(scheduledAt.getDate() + 1);
-  }
-
-  await ensureNotificationChannel();
+  await ensureWakeAlarmChannel();
   await LocalNotifications.schedule({
     notifications: [
       {
         id: WAKE_ALARM_NOTIFICATION_ID,
         title: "GlowUp будильник",
         body: "Час прокидатися. Почни день м'яко: вода, кілька рухів і спокійний старт.",
-        channelId: CHANNEL_ID,
+        channelId: WAKE_ALARM_CHANNEL_ID,
         autoCancel: true,
         schedule: {
-          at: scheduledAt,
+          on: { hour, minute },
+          repeats: true,
           allowWhileIdle: true,
         },
         extra: { type: "wake-alarm" },
@@ -212,7 +267,7 @@ export async function scheduleNativeWakeAlarm({ enabled, wakeTime }) {
     ],
   });
 
-  return { scheduled: true, scheduledAt: scheduledAt.toISOString() };
+  return { scheduled: true, hour, minute };
 }
 
 export async function scheduleNativeAiCoachReminder({ enabled }) {

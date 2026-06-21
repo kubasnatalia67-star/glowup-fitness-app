@@ -34,10 +34,6 @@ import java.util.Locale;
     }
 )
 public class GlowUpStepsPlugin extends Plugin {
-    private static final String PREFS_NAME = "GlowUpSteps";
-    private static final String DATE_KEY = "date";
-    private static final String BASELINE_KEY = "baseline";
-    private static final String LAST_TOTAL_KEY = "lastTotal";
     private static final String PERMISSION_MESSAGE = "Дозволь Physical activity / Activity recognition у налаштуваннях Android.";
 
     @PluginMethod
@@ -64,7 +60,7 @@ public class GlowUpStepsPlugin extends Plugin {
     public void getStatus(PluginCall call) {
         SensorManager sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         Sensor stepCounter = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        GlowUpStepData.Snapshot snapshot = GlowUpStepData.read(getContext());
         boolean permissionGranted = hasActivityPermission();
 
         JSObject response = new JSObject();
@@ -74,9 +70,13 @@ public class GlowUpStepsPlugin extends Plugin {
         response.put("hasSensor", stepCounter != null);
         response.put("available", permissionGranted && stepCounter != null);
         response.put("sensorName", stepCounter == null ? "" : stepCounter.getName());
-        response.put("date", prefs.getString(DATE_KEY, ""));
-        response.put("baseline", prefs.getInt(BASELINE_KEY, 0));
-        response.put("lastTotal", prefs.getInt(LAST_TOTAL_KEY, 0));
+        response.put("date", snapshot.stepsDate);
+        response.put("baseline", snapshot.baselineSteps);
+        response.put("lastTotal", snapshot.sensorTotalSteps);
+        response.put("sensorTotalSteps", snapshot.sensorTotalSteps);
+        response.put("baselineSteps", snapshot.baselineSteps);
+        response.put("stepsToday", snapshot.stepsToday);
+        response.put("stepsDate", snapshot.stepsDate);
         response.put("source", "android-step-counter");
         call.resolve(response);
     }
@@ -155,18 +155,22 @@ public class GlowUpStepsPlugin extends Plugin {
                 sensorManager.unregisterListener(this);
 
                 int totalSteps = Math.round(event.values[0]);
-                StepSnapshot snapshot = resetBaseline
-                    ? resetTodaySnapshot(totalSteps)
-                    : getTodaySnapshot(totalSteps);
-                syncWidgetSteps(snapshot.todaySteps);
+                GlowUpStepData.Snapshot snapshot = resetBaseline
+                    ? GlowUpStepData.resetToday(getContext(), totalSteps)
+                    : GlowUpStepData.update(getContext(), totalSteps);
+                syncWidgetSteps(snapshot.stepsToday);
 
                 JSObject response = new JSObject();
                 response.put("available", true);
-                response.put("steps", snapshot.todaySteps);
+                response.put("steps", snapshot.stepsToday);
                 response.put("totalSteps", totalSteps);
-                response.put("baseline", snapshot.baseline);
-                response.put("date", todayKey());
-                response.put("initialized", snapshot.initialized);
+                response.put("baseline", snapshot.baselineSteps);
+                response.put("date", snapshot.stepsDate);
+                response.put("sensorTotalSteps", snapshot.sensorTotalSteps);
+                response.put("baselineSteps", snapshot.baselineSteps);
+                response.put("stepsToday", snapshot.stepsToday);
+                response.put("stepsDate", snapshot.stepsDate);
+                response.put("initialized", snapshot.reset);
                 response.put("reset", resetBaseline);
                 response.put("sensorName", stepCounter.getName());
                 response.put("source", "android-step-counter");
@@ -194,64 +198,15 @@ public class GlowUpStepsPlugin extends Plugin {
         }
     }
 
-    private StepSnapshot getTodaySnapshot(int totalSteps) {
-        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String today = todayKey();
-        String savedDate = prefs.getString(DATE_KEY, "");
-        boolean initialized = false;
-        int baseline;
-
-        if (!today.equals(savedDate)) {
-            baseline = totalSteps;
-            initialized = true;
-            prefs.edit()
-                .putString(DATE_KEY, today)
-                .putInt(BASELINE_KEY, baseline)
-                .putInt(LAST_TOTAL_KEY, totalSteps)
-                .apply();
-        } else {
-            baseline = prefs.getInt(BASELINE_KEY, totalSteps);
-            prefs.edit().putInt(LAST_TOTAL_KEY, totalSteps).apply();
-        }
-
-        return new StepSnapshot(Math.max(0, totalSteps - baseline), baseline, initialized);
-    }
-
-    private StepSnapshot resetTodaySnapshot(int totalSteps) {
-        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit()
-            .putString(DATE_KEY, todayKey())
-            .putInt(BASELINE_KEY, totalSteps)
-            .putInt(LAST_TOTAL_KEY, totalSteps)
-            .apply();
-
-        return new StepSnapshot(0, totalSteps, true);
-    }
-
     private void syncWidgetSteps(int todaySteps) {
         SharedPreferences widgetPrefs =
             getContext().getSharedPreferences("GlowUpWidget", Context.MODE_PRIVATE);
         widgetPrefs.edit()
             .putInt("steps", todaySteps)
-            .putString("stepsDate", todayKey())
+            .putString("stepsDate", GlowUpStepData.todayKey())
             .putInt("activeCalories", Math.round(todaySteps * 0.04f))
             .apply();
         GlowUpWidgetProvider.updateAllWidgets(getContext());
     }
 
-    private static String todayKey() {
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
-    }
-
-    private static class StepSnapshot {
-        final int todaySteps;
-        final int baseline;
-        final boolean initialized;
-
-        StepSnapshot(int todaySteps, int baseline, boolean initialized) {
-            this.todaySteps = todaySteps;
-            this.baseline = baseline;
-            this.initialized = initialized;
-        }
-    }
 }

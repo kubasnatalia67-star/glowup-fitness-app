@@ -1,4 +1,5 @@
 import ProgressBar from "./ProgressBar.jsx";
+import GlowSelect from "./GlowSelect.jsx";
 
 const timeToMinutes = (time) => {
   if (!time) return null;
@@ -32,7 +33,7 @@ const formatSleepDate = (dateKey) => {
 };
 
 const sleepMoodOptions = [
-  ["", "Самопочуття"],
+  ["", "Обери настрій"],
   ["great", "Виспалась"],
   ["ok", "Нормально"],
   ["tired", "Втома"],
@@ -154,20 +155,17 @@ export default function SleepTrackerCard({
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr]">
-        <label className="text-sm font-semibold text-white/60">
+        <div className="text-sm font-semibold text-white/60">
           Самопочуття зранку
-          <select
+          <GlowSelect
             value={sleepMood}
-            onChange={(event) => onUpdateSleep("mood", event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-white outline-none focus:border-indigo-300"
-          >
-            {sleepMoodOptions.map(([value, label]) => (
-              <option key={value || "empty"} value={value} className="bg-[#171430] text-white">
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={sleepMoodOptions}
+            onChange={(value) => onUpdateSleep("mood", value)}
+            title="Обери настрій"
+            className="mt-2 bg-white/5"
+            accentClass="from-indigo-500 to-purple-500"
+          />
+        </div>
 
         <label className="text-sm font-semibold text-white/60">
           Нотатка
@@ -240,7 +238,7 @@ export default function SleepTrackerCard({
                   />
                 </div>
                 <p className="mt-1 text-[10px] font-bold text-white/45">{formatSleepDate(item.dateKey)}</p>
-                <p className="text-[10px] text-white/60">{item.hours ? `${item.hours}г` : "—"}</p>
+                <p className="text-[10px] text-white/60">{item.hours ? `${item.hours}г` : "-"}</p>
               </div>
             );
           })}
@@ -268,7 +266,7 @@ export default function SleepTrackerCard({
                         title="Видалити запис"
                         className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-lg font-bold text-white/45 transition hover:border-rose-300/40 hover:bg-rose-500/15 hover:text-rose-100"
                       >
-                        ×
+                        x
                       </button>
                     </div>
                   </div>

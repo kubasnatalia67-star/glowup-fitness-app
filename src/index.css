@@ -1,3 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --glow-safe-top: env(safe-area-inset-top, 0px);
+  --glow-top-gap: 12px;
+  --glow-app-top-padding: calc(var(--glow-safe-top) + var(--glow-top-gap));
+  --glow-floating-top: calc(var(--glow-safe-top) + 12px);
+  --glow-bottom-nav-drop: 38px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -239,10 +251,10 @@ textarea {
   position: fixed;
   left: 50%;
   right: auto;
-  bottom: env(safe-area-inset-bottom);
+  bottom: calc(env(safe-area-inset-bottom, 0px) - var(--glow-bottom-nav-drop));
   transform: translateX(-50%);
-  width: min(calc(100% - 1.5rem), 520px);
-  max-width: calc(100vw - 1.5rem);
+  width: min(calc(100% - 4rem), 410px);
+  max-width: calc(100vw - 4rem);
   border: 1px solid rgba(255, 255, 255, 0.13);
   background:
     linear-gradient(180deg, rgba(28, 24, 59, 0.94), rgba(12, 10, 33, 0.96));
@@ -251,25 +263,74 @@ textarea {
     0 0 35px rgba(236, 72, 153, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: visible;
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  min-height: 0;
+  max-height: calc(82px + env(safe-area-inset-bottom));
+  padding: 0.35rem !important;
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom)) !important;
   box-sizing: border-box;
   contain: layout paint;
 }
 
 .app-main-content {
-  padding-bottom: calc(6.75rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+}
+
+.home-screen-content {
+  margin-top: 0;
+}
+
+.home-greeting-card {
+  width: calc(100% - 1rem);
+  margin: 10px auto 0;
+}
+
+.glow-app-shell {
+  padding-top: var(--glow-app-top-padding) !important;
+}
+
+.glow-floating-settings {
+  top: var(--glow-floating-top) !important;
+}
+
+.glow-floating-profile {
+  top: calc(var(--glow-floating-top) + 48px) !important;
+}
+
+.glow-floating-charlie {
+  top: calc(var(--glow-floating-top) + 104px) !important;
+}
+
+.glow-safe-toast-1 {
+  top: calc(var(--glow-safe-top) + 1.5rem) !important;
+}
+
+.glow-safe-toast-2 {
+  top: calc(var(--glow-safe-top) + 6rem) !important;
+}
+
+.glow-safe-toast-3 {
+  top: calc(var(--glow-safe-top) + 11rem) !important;
+}
+
+.glow-safe-toast-4 {
+  top: calc(var(--glow-safe-top) + 16rem) !important;
+}
+
+.glow-modal-safe {
+  padding-top: var(--glow-app-top-padding) !important;
 }
 
 .premium-tab {
   position: relative;
   min-width: 0;
-  min-height: 56px;
-  border-radius: 18px;
+  min-height: 46px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
-  gap: 2px;
+  gap: 1px;
   color: rgba(255, 255, 255, 0.56);
-  line-height: 1.15;
+  font-size: 11px;
+  line-height: 1.05;
   overflow: hidden;
 }
 
@@ -277,9 +338,9 @@ textarea {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 5px;
-  width: 18px;
-  height: 3px;
+  bottom: 4px;
+  width: 16px;
+  height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, #ec4899, #fb923c);
   opacity: 0;
@@ -299,6 +360,9 @@ textarea {
 }
 
 .premium-add-button {
+  width: 54px !important;
+  height: 54px !important;
+  font-size: 1.9rem !important;
   justify-self: center;
   align-self: center;
   box-shadow:
@@ -308,7 +372,7 @@ textarea {
 
 .quick-menu {
   --quick-menu-bottom-gap: 110px;
-  --bottom-nav-visual-height: 76px;
+  --bottom-nav-visual-height: 82px;
   bottom: calc(var(--bottom-nav-visual-height) + var(--quick-menu-bottom-gap) + env(safe-area-inset-bottom));
   width: min(calc(100% - 1.5rem), 448px);
   max-width: calc(100vw - 1.5rem);
@@ -594,17 +658,22 @@ textarea {
 
 @media (max-width: 380px) {
   .premium-tab {
-    min-height: 48px;
-    font-size: 10px;
+    min-height: 44px;
+    font-size: 10.5px;
   }
 
   .premium-add-button {
-    width: 52px;
-    height: 52px;
+    width: 52px !important;
+    height: 52px !important;
   }
 }
 
 @media (max-width: 768px) {
+  :root {
+    --glow-safe-top: max(env(safe-area-inset-top, 0px), 28px);
+    --glow-top-gap: 12px;
+  }
+
   *,
   *::before,
   *::after {
@@ -652,15 +721,15 @@ textarea {
   .premium-bottom-nav {
     left: 50%;
     right: auto;
-    bottom: env(safe-area-inset-bottom);
+    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--glow-bottom-nav-drop));
     transform: translateX(-50%);
-    width: min(calc(100% - 1.5rem), 520px);
-    max-width: calc(100vw - 1.5rem);
+    width: min(calc(100% - 4rem), 410px);
+    max-width: calc(100vw - 4rem);
     overflow: visible;
   }
 
   .app-main-content {
-    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
   }
 
   .quick-menu {

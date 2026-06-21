@@ -41,10 +41,17 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
+        GlowUpStepUpdateReceiver.schedule(context);
         refreshStepsFromSensor(context);
         for (int appWidgetId : appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId);
         }
+    }
+
+    @Override
+    public void onEnabled(Context context) {
+        super.onEnabled(context);
+        GlowUpStepUpdateReceiver.schedule(context);
     }
 
     @Override
@@ -95,14 +102,12 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
         int waterGoalMl = Math.max(1, prefs.getInt(WATER_GOAL_KEY, 2000));
         String weight = prefs.getString(WEIGHT_KEY, "-");
         String weightText = weight == null || weight.trim().isEmpty() ? "-" : weight.trim();
-        int steps = prefs.getInt(STEPS_KEY, 0);
-        int activeCalories = prefs.getInt(ACTIVE_CALORIES_KEY, Math.round(steps * 0.04f));
+        GlowUpStepData.Snapshot stepSnapshot = GlowUpStepData.read(context);
+        int steps = stepSnapshot.stepsToday;
+        int activeCalories = Math.round(steps * 0.04f);
         int caloriesConsumed = prefs.getInt(CALORIES_CONSUMED_KEY, 0);
         int dailyCaloriesGoal = prefs.getInt(DAILY_CALORIES_GOAL_KEY, 0);
-        int remainingCalories = prefs.getInt(
-            REMAINING_CALORIES_KEY,
-            dailyCaloriesGoal - caloriesConsumed + activeCalories
-        );
+        int remainingCalories = dailyCaloriesGoal - caloriesConsumed + activeCalories;
         int waterProgress = Math.min(100, Math.round((waterMl * 100f) / waterGoalMl));
 
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.glowup_widget);
@@ -172,15 +177,7 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
     }
 
     static int getStoredTodaySteps(Context context) {
-        SharedPreferences sensorPrefs =
-            context.getSharedPreferences(STEPS_PREFS_NAME, Context.MODE_PRIVATE);
-        if (!todayKey().equals(sensorPrefs.getString(SENSOR_DATE_KEY, ""))) {
-            return 0;
-        }
-
-        int total = sensorPrefs.getInt(SENSOR_LAST_TOTAL_KEY, 0);
-        int baseline = sensorPrefs.getInt(SENSOR_BASELINE_KEY, total);
-        return Math.max(0, total - baseline);
+        return GlowUpStepData.read(context).stepsToday;
     }
 
     static void refreshStepsFromSensor(Context context) {
@@ -208,29 +205,15 @@ public class GlowUpWidgetProvider extends AppWidgetProvider {
                 manager.unregisterListener(this);
 
                 int totalSteps = Math.round(event.values[0]);
-                String today = todayKey();
-                SharedPreferences sensorPrefs =
-                    context.getSharedPreferences(STEPS_PREFS_NAME, Context.MODE_PRIVATE);
-                String savedDate = sensorPrefs.getString(SENSOR_DATE_KEY, "");
-                int baseline = sensorPrefs.getInt(SENSOR_BASELINE_KEY, totalSteps);
-
-                if (!today.equals(savedDate)) {
-                    baseline = totalSteps;
-                }
-
-                int todaySteps = Math.max(0, totalSteps - baseline);
-                sensorPrefs.edit()
-                    .putString(SENSOR_DATE_KEY, today)
-                    .putInt(SENSOR_BASELINE_KEY, baseline)
-                    .putInt(SENSOR_LAST_TOTAL_KEY, totalSteps)
-                    .apply();
+                GlowUpStepData.Snapshot snapshot =
+                    GlowUpStepData.update(context, totalSteps);
 
                 SharedPreferences widgetPrefs =
                     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                 widgetPrefs.edit()
-                    .putInt(STEPS_KEY, todaySteps)
-                    .putString(STEPS_DATE_KEY, today)
-                    .putInt(ACTIVE_CALORIES_KEY, Math.round(todaySteps * 0.04f))
+                    .putInt(STEPS_KEY, snapshot.stepsToday)
+                    .putString(STEPS_DATE_KEY, snapshot.stepsDate)
+                    .putInt(ACTIVE_CALORIES_KEY, Math.round(snapshot.stepsToday * 0.04f))
                     .apply();
                 updateAllWidgets(context);
             }

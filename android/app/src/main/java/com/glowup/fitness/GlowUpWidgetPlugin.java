@@ -42,12 +42,13 @@ public class GlowUpWidgetPlugin extends Plugin {
         Integer dailyCaloriesGoal = call.getInt("dailyCaloriesGoal", 0);
         Integer remainingCalories = call.getInt("remainingCalories", 0);
 
-        int safeSteps = Math.max(
-            steps == null ? 0 : steps,
-            GlowUpWidgetProvider.getStoredTodaySteps(getContext())
-        );
-        int safeActiveCalories =
-            activeCalories == null ? Math.round(safeSteps * 0.04f) : activeCalories;
+        GlowUpStepData.Snapshot stepSnapshot = GlowUpStepData.read(getContext());
+        int safeSteps = stepSnapshot.stepsToday;
+        int safeActiveCalories = Math.round(safeSteps * 0.04f);
+        int safeRemainingCalories =
+            (dailyCaloriesGoal == null ? 0 : dailyCaloriesGoal)
+                - (caloriesConsumed == null ? 0 : caloriesConsumed)
+                + safeActiveCalories;
         String today = todayKey();
         boolean isToday = today.equals(waterDate);
 
@@ -62,7 +63,7 @@ public class GlowUpWidgetPlugin extends Plugin {
             .putInt(ACTIVE_CALORIES_KEY, safeActiveCalories)
             .putInt(CALORIES_CONSUMED_KEY, caloriesConsumed == null ? 0 : caloriesConsumed)
             .putInt(DAILY_CALORIES_GOAL_KEY, dailyCaloriesGoal == null ? 0 : dailyCaloriesGoal)
-            .putInt(REMAINING_CALORIES_KEY, remainingCalories == null ? 0 : remainingCalories)
+            .putInt(REMAINING_CALORIES_KEY, safeRemainingCalories)
             .apply();
 
         GlowUpWidgetProvider.updateAllWidgets(getContext());
@@ -126,8 +127,9 @@ public class GlowUpWidgetPlugin extends Plugin {
     }
 
     private JSObject buildStatsResponse(SharedPreferences prefs) {
-        int steps = prefs.getInt(STEPS_KEY, 0);
-        int activeCalories = prefs.getInt(ACTIVE_CALORIES_KEY, Math.round(steps * 0.04f));
+        GlowUpStepData.Snapshot stepSnapshot = GlowUpStepData.read(getContext());
+        int steps = stepSnapshot.stepsToday;
+        int activeCalories = Math.round(steps * 0.04f);
 
         JSObject response = new JSObject();
         response.put("waterMl", prefs.getInt(WATER_KEY, 0));
@@ -136,9 +138,18 @@ public class GlowUpWidgetPlugin extends Plugin {
         response.put("weightKg", prefs.getString(WEIGHT_KEY, ""));
         response.put("steps", steps);
         response.put("activeCalories", activeCalories);
+        response.put("sensorTotalSteps", stepSnapshot.sensorTotalSteps);
+        response.put("baselineSteps", stepSnapshot.baselineSteps);
+        response.put("stepsToday", stepSnapshot.stepsToday);
+        response.put("stepsDate", stepSnapshot.stepsDate);
         response.put("caloriesConsumed", prefs.getInt(CALORIES_CONSUMED_KEY, 0));
         response.put("dailyCaloriesGoal", prefs.getInt(DAILY_CALORIES_GOAL_KEY, 0));
-        response.put("remainingCalories", prefs.getInt(REMAINING_CALORIES_KEY, 0));
+        response.put(
+            "remainingCalories",
+            prefs.getInt(DAILY_CALORIES_GOAL_KEY, 0)
+                - prefs.getInt(CALORIES_CONSUMED_KEY, 0)
+                + activeCalories
+        );
         return response;
     }
 
