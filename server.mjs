@@ -371,7 +371,9 @@ async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } =
             {
               type: "input_text",
               text:
-                "Analyze this food photo. Return only JSON with this shape: " +
+                "Inspect the actual image pixels and identify only the visible food. Do not describe app UI, screenshots, menus, buttons, or text unless no food is visible. " +
+                "Estimate a realistic total portion for everything visible in the dish. If food is clearly visible, calories and at least one macronutrient must be greater than zero. " +
+                "Return only JSON with this shape: " +
                 '{"name":"dish name","calories":number,"protein":number,"fat":number,"carbs":number,"advice":"short practical advice"}. ' +
                 `The values for "name" and "advice" must be written only in ${languageName}; do not use English unless ${languageName} is English. ` +
                 `If the user typed a hint, use it carefully: ${foodName || "no hint"}.`,
@@ -379,7 +381,7 @@ async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } =
             {
               type: "input_image",
               image_url: image,
-              detail: "low",
+              detail: "high",
             },
           ],
         },
@@ -399,6 +401,19 @@ async function analyzeFoodWithOpenAI({ image, foodName = "", language = "uk" } =
   const text = data.output_text || extractOutputText(data);
   const parsed = parseFoodJson(text);
   const localized = await localizeFoodResultIfNeeded(parsed, language);
+
+  const nutritionTotal =
+    Math.max(0, Number(localized.calories) || 0) +
+    Math.max(0, Number(localized.protein) || 0) +
+    Math.max(0, Number(localized.fat) || 0) +
+    Math.max(0, Number(localized.carbs) || 0);
+
+  if (!String(localized.name || "").trim() || nutritionTotal <= 0) {
+    const error = new Error("OpenAI returned an invalid zero-value food analysis.");
+    error.statusCode = 422;
+    error.publicMessage = "AI could not recognize food in this photo. Try a clearer food photo.";
+    throw error;
+  }
 
   return {
     name: String(localized.name || "Food"),
@@ -468,6 +483,7 @@ async function analyzeBodyWithOpenAI({ image, images = {}, profile = {}, languag
               type: "input_text",
               text:
                 `Analyze these full-body fitness progress photos together. Available views: ${availableAngles}. ` +
+                "This GlowUp version is intended for women's fitness progress only. " +
                 "Compare only visible posture, alignment, symmetry, and training focus across the supplied views. " +
                 "Do not diagnose disease, do not identify the person, and do not mention sensitive traits. " +
                 "Do not estimate body-fat percentage, weight, medical conditions, or attractiveness from images. " +
